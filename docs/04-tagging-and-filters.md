@@ -192,13 +192,13 @@ growth, not principle.
 **F1 — Wikidata rather than scraping Wikipedia?** *(Section 2. Recommended: yes — same
 facts, structured, no parsing, and the subgenre hierarchy comes free.)*
 
-- [ ] Yes — Wikidata
+- [x] Yes — Wikidata
 - [ ] Scrape Wikipedia pages as originally imagined
 - [ ] Explain the difference again
 
 **F2 — Free/premium split, or everything premium?** *(Section 4.)*
 
-- [ ] Split: one filter free, combinations premium *(recommended)*
+- [x] Split: one filter free, combinations premium *(recommended)*
 - [ ] All filtering is premium
 - [ ] All filtering is free; premium earns its money from demographics only
 - [ ] Other: `________________________`
@@ -206,8 +206,8 @@ facts, structured, no parsing, and the subgenre hierarchy comes free.)*
 **F3 — Which filters exist first?** *(Still open from Q6 of the product spec. Recommended:
 the first two.)*
 
-- [ ] Most divisive — high participation, score near zero
-- [ ] Unvoted by me
+- [x] Most divisive — high participation, score near zero
+- [x] Unvoted by me
 - [ ] By tag (horror, mammal, 1980s…)
 - [ ] By participation — "more than N voters"
 - [ ] By score range
@@ -215,15 +215,15 @@ the first two.)*
 
 **F4 — Confirm nothing here is built during Stage 0.**
 
-- [ ] Confirmed — Stage 0 uses invented tags only
+- [x] Confirmed — Stage 0 uses invented tags only
 - [ ] I want real Wikidata tagging sooner
 
 ---
 
 ## 7. Approval
 
-- **Approved by:** `________________________`
-- **Date:** `________________________`
+- **Approved by:** `Lovas Zoltán`
+- **Date:** `2026.09.07.`
 - **Approved with the following changes:**
 
 ```

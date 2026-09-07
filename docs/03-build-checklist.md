@@ -467,8 +467,8 @@ gate.
 
 ## Approval
 
-- **Approved by:** `________________________`
-- **Date:** `________________________`
+- **Approved by:** `Lovas Zoltán`
+- **Date:** `2026.09.07.`
 - **Approved with the following changes:**
 
 ```

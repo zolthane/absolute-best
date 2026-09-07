@@ -404,8 +404,8 @@ here so it is not lost:
 
 ## 8. Approval
 
-- **Approved by:** `________________________`
-- **Date:** `________________________`
+- **Approved by:** `Lovas Zolán`
+- **Date:** `2026.09.07.`
 - **Approved with the following changes:**
 
 ```
