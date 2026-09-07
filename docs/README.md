@@ -16,6 +16,7 @@ directly on GitHub. **You cannot break anything by editing them.**
 | 03 | [Build checklist](03-build-checklist.md) | The ordered build steps for Stage 0, tickable as we go | **Awaiting your approval** |
 | 04 | [Tagging and filters](04-tagging-and-filters.md) | Automatic tags from Wikidata, and which filters are free vs premium | **Awaiting your approval** |
 | 10 | [Local setup](10-local-setup.md) | How to get your machine ready | Available now — a how-to, not a plan to approve |
+| 11 | [Git workflow](11-git-workflow.md) | Branch rules: `main` / `dev` / `feature/xy` | Active |
 | 99 | [Glossary](99-glossary.md) | Plain-language explanations of the technical words | Available now |
 
 Documents 01 and 03 are deliberately not written yet. Their content depends on the
