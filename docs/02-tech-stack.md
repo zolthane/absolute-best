@@ -475,8 +475,8 @@ repository is unchanged and no boxes are ticked — see the note at the top of m
 
 ## 13. Approval
 
-- **Approved by:** `________________________`
-- **Date:** `________________________`
+- **Approved by:** `Lovas Zoltán`
+- **Date:** `2026.09.07.`
 - **Approved with the following changes:**
 
 ```
