@@ -12,13 +12,17 @@ directly on GitHub. **You cannot break anything by editing them.**
 | --- | --- | --- | --- |
 | 00 | [Business plan](00-business-plan.md) | What are we building, for whom, why, at what cost and risk? | **Awaiting your approval** |
 | 01 | `01-product-spec.md` | Exactly what the prototype does, screen by screen | Not written yet |
-| 02 | `02-technical-plan.md` | How it is built, and which files exist and why | Not written yet |
+| 02 | [Technology stack](02-tech-stack.md) | Which tools we build with, and why each one | **Awaiting your approval** |
 | 03 | `03-build-checklist.md` | The ordered list of build steps, tickable as we go | Not written yet |
+| 10 | [Local setup](10-local-setup.md) | How to get your machine ready | Available now — a how-to, not a plan to approve |
 | 99 | [Glossary](99-glossary.md) | Plain-language explanations of the technical words | Available now |
 
-Documents 01–03 are deliberately not written yet. Their content depends on the decisions
-you make in Section 12 of the business plan, and writing them first would risk planning the
-wrong product in detail.
+Documents 01 and 03 are deliberately not written yet. Their content depends on the
+decisions in Section 12 of the business plan and Section 12 of the tech stack document, and
+writing them first would risk planning the wrong product in detail.
+
+Document 10 needs no approval — it simply records what is installed on your machine and
+how to install the rest.
 
 ---
 
@@ -29,14 +33,16 @@ wrong product in detail.
                                                     │
                                              you approve
                                                     ▼
-                                          [ 02 Technical plan ]
+                                        [ 02 Technology stack ]
                                                     │
                                              you approve
                                                     ▼
                                         [ 03 Build checklist ]
                                                     │
                                                     ▼
-                                              ✍  Code
+                                       ✍  Code, in small batches
+                                          (each ending with a
+                                           manual test guide)
 ```
 
 **No code is written until documents 00–03 are approved.** That is the rule you set, and
