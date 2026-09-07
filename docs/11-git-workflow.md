@@ -86,38 +86,203 @@ Create**. Read the summary of what changed, then merge.
 
 ---
 
-## 4. Setting this up on GitHub
+## 4. Setting this up on GitHub — step by step
 
-**Not done yet.** The repository exists only on your machine — there is no remote. Note
-that **your `main` rule cannot actually be enforced until this is done**, because pull
-requests are a GitHub feature and do not exist locally.
+**Not done yet.** The repository exists only on your machine. Note that **your `main` rule
+cannot be enforced until this is done**, because pull requests are a GitHub feature and do
+not exist locally.
 
 Business plan decision **D4** says the repository is public.
 
-```powershell
-winget install GitHub.cli
-gh auth login
-gh repo create absolute-best --public --source=. --remote=origin --push
-git push -u origin dev
+> ### ⚠ Read this before you start
+>
+> **Publishing is not fully reversible.** Once a public repository exists, it can be cloned,
+> forked, cached and indexed by search engines within minutes. Deleting it afterwards does
+> not reliably remove those copies. Nothing here is sensitive — I have checked, and there
+> are no `.env` files and no secrets anywhere in the repository — but the decision itself is
+> one-way. If you have any doubt, create it **private** now (`--private` instead of
+> `--public` in step 5) and switch it to public later. That direction is easy; the other is
+> not.
+
+---
+
+### Step 0 — Decide which email address your commits carry
+
+**Do this first, because it is far easier now than later.**
+
+Every git commit records an email address, and on a public repository **that address is
+visible to anyone, permanently, including automated address harvesters**. Your commits
+currently carry:
+
+```
+[redacted]
 ```
 
-Then make `main` the protected branch, on github.com:
+That is your work address. Publishing it on a personal side project invites spam to your
+work inbox, and ties company identity to a private venture.
+
+**GitHub provides a private alternative** — an address of the form
+`12345678+username@users.noreply.github.com`, which works normally but reveals nothing.
+You will find yours after step 3, at **github.com → Settings → Emails → "Keep my email
+addresses private"**.
+
+Choose one:
+
+- **A — Switch to the GitHub private address.** Recommended. Requires one extra step, and I
+  can also rewrite the five existing commits so the work address never appears at all. This
+  is completely safe *right now*, because nothing has been pushed anywhere yet. It becomes
+  awkward the moment you publish.
+- **B — Use a personal email address.** Also fine. Same rewrite applies.
+- **C — Keep the work address.** Simplest, and a legitimate choice if you do not mind.
+
+**Tell me which, and if A or B, I will do the rewrite before anything is pushed.**
+
+---
+
+### Step 1 — Make sure you have a GitHub account
+
+If you do not, go to [github.com/signup](https://github.com/signup). It is free. Note the
+**username** you choose; you will need it below.
+
+---
+
+### Step 2 — Install the GitHub command-line tool
+
+```powershell
+winget install GitHub.cli
+```
+
+Then **close your terminal and open a new one** — newly installed programs are invisible to
+terminals that were already running. Confirm:
+
+```powershell
+gh --version
+```
+
+You should see a version number. If it says "not recognized", reopen the terminal again.
+
+---
+
+### Step 3 — Log in
+
+```powershell
+gh auth login
+```
+
+It asks a series of questions. Answer them like this:
+
+| Question | Answer |
+| --- | --- |
+| What account do you want to log into? | **GitHub.com** |
+| What is your preferred protocol? | **HTTPS** |
+| Authenticate Git with your GitHub credentials? | **Yes** |
+| How would you like to authenticate? | **Login with a web browser** |
+
+It then shows a one-time code such as `ABCD-1234`. Press Enter, your browser opens, paste
+the code, and approve. The terminal should finish with:
+
+```
+✓ Logged in as your-username
+```
+
+**This step must be done by you, in your own terminal** — it needs a real browser and your
+password.
+
+---
+
+### Step 4 — Final check before publishing
+
+```powershell
+cd c:\Projects\absolute-best
+git status
+git log --oneline
+```
+
+`git status` should say **nothing to commit, working tree clean**. `git log` should show
+your commits. If anything is uncommitted, stop and tell me.
+
+---
+
+### Step 5 — Create the repository and push
+
+Make sure you are in the project folder, then:
+
+```powershell
+gh repo create absolute-best --public --source=. --remote=origin --push
+```
+
+*(Use `--private` instead of `--public` if you decided to start private.)*
+
+This creates the repository on GitHub, links it to your local folder, and uploads the
+current branch. Then push the other branch too:
+
+```powershell
+git push -u origin dev
+git push -u origin main
+```
+
+Open the repository in your browser to confirm:
+
+```powershell
+gh repo view --web
+```
+
+You should see your `docs` folder and the README.
+
+---
+
+### Step 6 — Make `dev` the default branch
+
+So that new work and pull requests point at the right place.
+
+On github.com, in your repository: **Settings → General → Default branch → the ⇄ swap icon
+→ choose `dev` → Update.**
+
+---
+
+### Step 7 — Protect `main`
+
+This is what actually enforces your "PR only" rule. Branch protection is free on public
+repositories.
 
 **Settings → Branches → Add branch protection rule**
 
 - Branch name pattern: `main`
-- ☑ Require a pull request before merging
-- ☑ Require status checks to pass before merging → select the GitHub Actions check *(once
-  batch 0 has created it)*
-- ☑ Do not allow bypassing the above settings
+- ☑ **Require a pull request before merging**
+- ☑ **Do not allow bypassing the above settings** — without this, the rule does not apply to
+  you, which defeats the purpose on a solo project
+- Leave **Require status checks** unticked for now. It cannot be configured until a
+  GitHub Actions workflow has run at least once, which happens in **batch 0**. Come back
+  and tick it afterwards.
 
-Also set **Settings → General → Default branch → `dev`**, so that new work and pull requests
-default to the right place.
+Then **Create**.
 
-> **Before making the repository public, check that no `.env` file has ever been committed.**
-> The `.gitignore` already blocks them, and nothing sensitive exists yet, but it is worth
-> confirming rather than assuming — a secret pushed to a public repository must be treated
-> as compromised even after deletion.
+---
+
+### Step 8 — Confirm it works
+
+```powershell
+git checkout main
+git commit --allow-empty -m "test protection"
+git push
+```
+
+**This push should be REJECTED**, with a message about protected branches. That rejection is
+the proof your rule works. Undo the test commit:
+
+```powershell
+git reset --hard HEAD~1
+git checkout dev
+```
+
+If the push **succeeded**, the protection is not configured correctly — go back to step 7
+and check "Do not allow bypassing" is ticked.
+
+---
+
+### When you are done
+
+Tell me, and I will start `feature/batch-0-skeleton`.
 
 ---
 
