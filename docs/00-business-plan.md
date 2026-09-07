@@ -49,14 +49,19 @@ Absolute Best does not average. It **adds**.
 | Sample Film Beta | +9, +9 | **+18** | 18 units right of centre |
 | Sample Film Gamma | +7, −7, +6, −6 | **0** | Dead centre |
 
-If the person who voted −3 on Sample Film Alpha changes their mind to +4, the total becomes
-+27 and the item visibly slides to the right. Votes may be changed at any time, and the
-world moves when they are.
+Every registered user can only vote on one item only once, and that vote is final.
+If a fifth person now votes −3 on Sample Film Alpha, the total becomes
++17 and the item visibly slides to the left. The world moves as new people vote.
+Every item also gets a voted on counter that each time it gets voted on gets 1 point that moves it up on the y axis.
 
 Three consequences fall out of this design, and they are the whole product:
 
-1. **Popularity and quality become one axis.** Something adored by millions ends up far to
-   the right. Something adored by four people sits near the centre — honestly.
+1. **Two axes together separate popularity from opinion.** Left-to-right is the sum of
+   every vote; bottom-to-top is how many people voted. The score alone is ambiguous — a
+   large positive number could mean "adored" or merely "seen by everyone" — but read
+   together with the height, the difference is obvious. High and far right means genuinely
+   loved by many; low and far right means intensely loved by few; high and near the centre
+   means famous and divisive.
 2. **Zero becomes meaningful.** An item at zero with four votes is simply unknown. An item
    at zero with forty thousand votes is genuinely *divisive* — and that is a story no star
    rating can tell.
@@ -93,6 +98,7 @@ interesting. A ranked list is not.
 **Honest assessment of the audience risk:** the first three groups only exist once there is
 enough data for the line to look alive. This is the single largest risk in the plan and is
 addressed in Section 9.
+Idea: populate site with 100 random articles at start.
 
 ---
 
@@ -109,9 +115,9 @@ Recording these now prevents a great deal of wasted work later.
   worthless. This is not a phase-one decision; it is permanent.
 - **No selling of personal data.** Demographic features sell *aggregate views*, never
   individual records. This is also a legal necessity — see Section 10.
-- **No mobile app initially.** The website is built to work in a phone browser; a native
+- **No mobile app initially.** The website is built to work in a phone browser; a native , although thinking on phone users there could be a fullscreen view mode
   app is a Stage 4 question at the earliest.
-- **No advertising.** It would compromise both the visual language and the credibility.
+- **No advertising.** It would compromise both the visual language and the credibility. But simple google adsense ads can be added. That could be turned of with one time pay.
 
 ---
 
@@ -234,10 +240,10 @@ running cost, whether measured in your hours or somebody's salary.
 | 1 | **Cold start.** An empty map is boring, boring maps attract no votes, and no votes keeps the map empty. | **Critical** | Seed several hundred items before opening. Make Quick Fire the default landing action so a new visitor has voted within ten seconds. Consider a private beta so the map is already populated at public launch. |
 | 2 | **Vote manipulation.** Fan groups or bots inflate an item. Because scores are sums, a coordinated group has unlimited upside. | **High** | Email-verified accounts; rate limits; anomaly detection on sudden score jumps; retain full vote history so manipulation can be reversed. Accept that perfect defence is impossible and design the product to survive imperfection. |
 | 3 | **Harmful content.** "Anyone can add anything" guarantees that somebody eventually adds something illegal, hateful, or targeting a private individual. | **High** | Publish a content policy before launch. Require login to add. Provide a report button from day one. Prohibit entries about private individuals outright. Queue new entries for review during the early period, while volume is low enough to allow it. |
-| 4 | **Voting on real people.** A named living person sitting at −40,000 on a public chart is a defamation and harassment risk, and a personal-data question under GDPR. | **High** | **Recommendation: exclude living people as a category until Stage 2 at the earliest, and take legal advice before enabling it.** See Section 10. |
+| 4 | **Voting on real people.** A named living person sitting at −40,000 on a public chart is a defamation and harassment risk, and a personal-data question under GDPR. | **High** | **Recommendation: exclude living people as a category until Stage 2 at the earliest, and take legal advice before enabling it.** See Section 10. | Voting on real people is only allowed when said people have wikipedia page, e.g. historical or media person.
 | 5 | **Nobody comes.** The most likely outcome for any new consumer platform. | **High** | Stage 0 costs only time. The stage gates exist so that we find out cheaply. |
 | 6 | **Popularity swamps quality.** Because scores add, the right-hand end fills with whatever is merely famous. | **Medium** | Arguably correct behaviour rather than a defect — but the second axis (number of voters) and a "most divisive" view must exist so the map can be read in more than one way. |
-| 7 | **Performance.** A map holding hundreds of thousands of items must still pan smoothly. | **Medium** | Only ever draw the visible region. Designed in from Stage 0, not retrofitted later. |
+| 7 | **Performance.** A map holding hundreds of thousands of items must still pan smoothly. | **Medium** | Only ever draw the visible region. Designed in from Stage 0, not retrofitted later. | give suggestion  for visible range, my idea is: highest score/2
 | 8 | **Regulatory.** GDPR, the Digital Services Act and consent rules all apply to this product. | **Medium–High** | Section 10. Addressed at Stage 1, designed for at Stage 0. |
 | 9 | **Key-person dependency.** One person understands and maintains everything. | **Medium** | Plain-language documentation (these files), source code on GitHub, and no undocumented manual steps. |
 
@@ -331,14 +337,14 @@ product specification cannot be written until they are settled.
 
 **D1 — Which name are we going with?**
 
-- [ ] Absolute Best — *"Not rated. Positioned."*
+- [x] Absolute Best — *"Not rated. Positioned."*
 - [ ] Opinion Atlas — *"Where opinions become coordinates."*
 - [ ] Other: `________________________`
 - [ ] Decide later; use "Absolute Best" as the working title
 
 **D2 — Is Stage 0 (prototype only, no server, fake data) the correct next step?**
 
-- [ ] Yes — build the prototype, then reassess
+- [x] Yes — build the prototype, then reassess
 - [ ] No — go straight to Stage 1 with a real server and database
 - [ ] Other: `________________________`
 
@@ -348,19 +354,19 @@ product specification cannot be written until they are settled.
 - [ ] Agreed — excluded for now
 - [ ] Allow it, but only for public figures
 - [ ] Allow it from the start
-- [ ] Other: `________________________`
+- [x] Other: `Only people with wikipedia entry`
 
 **D4 — Should the GitHub repository be public or private?**
 *My recommendation: private until Stage 1. A public repository invites people to copy an
 unproven idea and gains you nothing at this stage.*
 
 - [ ] Private
-- [ ] Public
+- [x] Public
 - [ ] Public, with an open-source licence: `________________________`
 
 **D5 — What is the realistic time budget?**
 
-- [ ] A few hours a week — a hobby, no deadline
+- [x] A few hours a week — a hobby, no deadline
 - [ ] Roughly one day a week
 - [ ] Substantial time — this is a serious attempt
 - [ ] Other: `________________________`
@@ -368,12 +374,12 @@ unproven idea and gains you nothing at this stage.*
 **D6 — Are you willing to spend money at Stage 1?**
 
 - [ ] Yes, up to roughly €`______` per month
-- [ ] Only if Stage 0 convinces me
+- [x] Only if Stage 0 convinces me
 - [ ] No — it must stay free to run
 
 **D7 — Is the interface in English, Hungarian, or both?**
 
-- [ ] English only
+- [x] English only
 - [ ] Hungarian only
 - [ ] Both from the start
 - [ ] English first, Hungarian later
@@ -383,7 +389,7 @@ unproven idea and gains you nothing at this stage.*
 built differently.*
 
 - [ ] Learning to build software properly; the product is the excuse
-- [ ] A real product with real users; income optional
+- [x] A real product with real users; income optional
 - [ ] A business that makes money
 - [ ] Other: `________________________`
 
@@ -394,12 +400,12 @@ built differently.*
 Complete this section when you are satisfied with the plan above. Nothing further will be
 built until it is filled in.
 
-- **Approved by:** `________________________`
-- **Date:** `________________________`
+- **Approved by:** `Lovas Zoltán`
+- **Date:** `2026.09.07.`
 - **Approved with the following changes:**
 
 ```
-(write anything you want changed here)
+i did wrote a few changes, but i don't know where :(, also extra idea we need filters!)
 ```
 
 **What happens next, once this is approved:**
@@ -411,3 +417,77 @@ built until it is filled in.
 3. I write `03-build-checklist.md` — the ordered list of build steps, so that progress is
    visible at any moment.
 4. Only then does any code get written.
+
+---
+
+## 14. Notes added after approval
+
+Approval is not reopened by anything here. These are the loose ends from your own margin
+notes, recorded so they are neither lost nor silently acted upon.
+
+### 14.1 Where your other notes went
+
+| Your note | Where it now lives |
+| --- | --- |
+| Vote once, vote is final | Section 2, and rules R1–R3 in the [product spec](01-product-spec.md) |
+| Vote counter moves the item up the Y axis | Section 2, and the axes table in the product spec |
+| "Populate site with 100 random articles at start" | [Product spec §7.3](01-product-spec.md) |
+| "Fullscreen view mode" for phone users | [Product spec §7.2](01-product-spec.md) |
+| "Only people with wikipedia entry" (D3) | Section 14.3 below |
+| "Give suggestion for visible range" (Risk 7) | [Product spec §2](01-product-spec.md) — answered |
+| "We need filters!" | [Product spec §6, question Q6](01-product-spec.md) — awaiting your choice |
+| Google AdSense (Section 5) | Section 14.2 below |
+
+### 14.2 Google AdSense — flagged, not decided
+
+Your note sits inside the bullet that says "No advertising", so the two currently
+contradict each other. That is fine for now — but it is a real decision rather than a
+detail, and it carries costs that are not obvious.
+
+**What adding AdSense would require:**
+
+- **A consent banner, unavoidably.** AdSense sets advertising cookies, so under EU rules it
+  cannot run until the visitor agrees. Google additionally requires a *certified* consent
+  management platform for European traffic. This is the single biggest cost — it is the
+  first thing every visitor sees, on a product whose whole appeal is a clean, uninterrupted
+  map.
+- **A compliance review**, per Section 11. AdSense sends visitor data to Google, which
+  makes Google a processor and brings transfer and disclosure obligations with it.
+- **A privacy policy that discloses it**, before the first advert is served.
+
+**Honest assessment:** at 10,000 users, display advertising on a site like this would
+realistically bring in tens of euros per month — a fraction of the €2,000 the supporter
+tier is modelled at in Section 17, for considerably more compliance work and a visibly
+worse first impression. Advertising tends to pay only at a scale this product will not
+reach for years.
+
+**Recommendation: keep "no advertising" for Stages 0–2, and revisit at Stage 3** alongside
+the supporter tier, where "pay once to remove ads" naturally belongs. Your instinct that
+ads should be removable by payment is sound; it just needs the payment system to exist
+first.
+
+**Not acting on this either way** until you decide. The bullet in Section 5 is left exactly
+as you wrote it.
+
+### 14.3 D3 — "Only people with wikipedia entry"
+
+**Recorded, and it changes nothing before Stage 1** — Stage 0 contains no real people at
+all, only placeholder items.
+
+It is a better rule than it may look: "has a Wikipedia article" is objective, checkable,
+and roughly tracks the legal notion of a public figure, which is precisely the line that
+matters. It also fits the plan's existing Wikipedia integration, so it can be enforced
+automatically rather than by judgement.
+
+Two things it does **not** resolve, both restated from Risk 4 and Section 10 rather than
+argued again:
+
+- A living person with a Wikipedia article sitting at −40,000 on a public chart remains a
+  defamation and harassment exposure. Being a public figure lowers that risk; it does not
+  remove it.
+- Their score is still personal data under GDPR, and voting patterns on political or
+  religious figures can amount to inferred special-category data.
+
+**Recommendation, unchanged: take legal advice before Stage 1 goes public**, and consider
+excluding living people while still allowing historical ones — a distinction Wikipedia
+records, so it is equally automatic to enforce.

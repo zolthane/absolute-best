@@ -11,7 +11,7 @@ directly on GitHub. **You cannot break anything by editing them.**
 | # | Document | What it answers | Status |
 | --- | --- | --- | --- |
 | 00 | [Business plan](00-business-plan.md) | What are we building, for whom, why, at what cost and risk? | **Awaiting your approval** |
-| 01 | `01-product-spec.md` | Exactly what the prototype does, screen by screen | Not written yet |
+| 01 | [Product spec — Part 1](01-product-spec.md) | The map and voting, interaction by interaction | **Awaiting your approval** |
 | 02 | [Technology stack](02-tech-stack.md) | Which tools we build with, and why each one | **Awaiting your approval** |
 | 03 | `03-build-checklist.md` | The ordered list of build steps, tickable as we go | Not written yet |
 | 10 | [Local setup](10-local-setup.md) | How to get your machine ready | Available now — a how-to, not a plan to approve |

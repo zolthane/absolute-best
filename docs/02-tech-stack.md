@@ -2,11 +2,14 @@
 
 | | |
 | --- | --- |
-| **Version** | 0.1 — Draft |
+| **Version** | 0.2 — revised for your REST decision (T2) |
 | **Date** | 2026-09-07 |
-| **Status** | **AWAITING YOUR APPROVAL** |
+| **Status** | **AWAITING YOUR APPROVAL** — T1–T5 answered; Section 13 not yet signed |
 | **Purpose** | Agree which tools we build with, before any of them are installed |
-| **Depends on** | [Business plan](00-business-plan.md) — decisions D2 and D8 are still open |
+| **Depends on** | [Business plan](00-business-plan.md) — **approved** 2026-09-07, D1–D8 answered |
+
+> **Changed in 0.2:** you chose **REST over tRPC** (T2). Sections 1, 5, 7 and 9 are revised
+> accordingly. Nothing else moved.
 
 > Every version number below was looked up live from the npm registry today, not
 > remembered. Plain-language explanations of the technical words are in the
@@ -27,7 +30,9 @@
 | **Components** | shadcn/ui | (copied in) | Ready-made buttons, dialogs, inputs you own outright |
 | **Client state** | Zustand | 5.0.15 | Remembers where the camera is pointing |
 | **Backend framework** | Fastify | 5.12.3 | The program that answers the frontend's requests |
-| **Frontend↔backend** | tRPC | 11.18.0 | Lets the frontend call the backend like a normal function |
+| **Frontend↔backend** | REST over HTTP | — | Ordinary web addresses the frontend fetches — the industry standard |
+| **Route typing** | fastify-type-provider-zod | 7.0.0 | Makes Fastify validate and type each route from a Zod schema |
+| **API documentation** | @fastify/swagger + Scalar | 9.8.1 / 1.68.0 | Generates a browsable page listing every endpoint, from the same schemas |
 | **Validation** | Zod | 4.5.4 | One definition of "valid data", shared by both sides |
 | **Authentication** | Better Auth | 1.7.3 | Logins and sessions, self-hosted |
 | **Database access** | Prisma | **7.10.0 — pin this** | Reads and writes the database using ordinary code |
@@ -186,26 +191,48 @@ is the most likely cause of a map that feels sluggish.
 
 ## 5. The backend, piece by piece
 
-### Fastify + tRPC
+### Fastify + REST — *your choice (T2)*
 
-**What tRPC is:** normally, a frontend and backend communicate by agreeing on a set of web
-addresses and message formats, and you write that agreement out twice — once on each side.
-When they drift apart, you get bugs that only appear in production.
+**What REST is:** the backend publishes a set of web addresses, each doing one thing. The
+frontend fetches them. It is how the overwhelming majority of the web works.
 
-tRPC removes the duplication. The backend defines a function; the frontend calls it as if
-it were local. Your editor autocompletes it. Rename something on the server and the
-frontend immediately shows an error.
+```
+  GET  /api/items?minScore=-500&maxScore=500   fetch the visible part of the world
+  GET  /api/items/:id                          one item's details
+  POST /api/items/:id/vote                     cast a vote  { "value": 7 }
+  GET  /api/search?q=alpha                     search
+```
 
-**Why this matters here specifically:** you are one person maintaining both sides. Every
-duplicated definition is a chance for them to disagree. And tRPC was designed to work with
-TanStack Query, so the two combine into very little code.
+**You chose this over tRPC to learn the industry-standard approach, and that is a sound
+reason.** REST is what you will meet in every other codebase, every tutorial and every job
+advertisement. tRPC would have been slightly less code; REST is more transferable
+knowledge. For a project whose stated purpose (D8) is a real product built by someone
+learning properly, the trade is worth making.
 
-**The honest trade-off:** tRPC couples your frontend and backend together, so it is not
-suitable for the public API that Stage 4 of the business plan envisages. That is less of a
-problem than it sounds, because **you would not want to expose your internal application
-calls as a public product anyway** — a public API is a deliberately designed, versioned,
-documented surface, built separately when the time comes. tRPC for the app now; a proper
-REST API alongside it at Stage 4.
+**The one real cost, and how we neutralise it.** REST's genuine weakness is that the
+agreement between frontend and backend is written twice — once on each side — and the two
+can silently drift apart. We avoid that with a single technique:
+
+> **The Zod schema in `packages/shared` is the only definition.** The backend uses it to
+> validate incoming requests. The frontend uses it to check responses. TypeScript derives
+> both sides' types from it. Change the schema and *both* sides show errors immediately.
+
+Concretely, three small pieces do this:
+
+| Piece | Job |
+| --- | --- |
+| **fastify-type-provider-zod** | Attaches a Zod schema to each route. Fastify then rejects invalid requests automatically and types the handler for you. |
+| **A small typed fetch wrapper** (~40 lines, hand-written) | The frontend's single door to the backend. Every response is parsed through the shared schema, so a backend change surfaces immediately rather than as a strange bug later. |
+| **TanStack Query** | Wraps those fetch calls, handling caching, loading states, retries and optimistic updates. |
+
+**A bonus worth having:** because the routes carry Zod schemas, `@fastify/swagger` can
+generate live API documentation from them for free — a browsable page listing every
+endpoint, what it accepts, what it returns, with a button to try each one. For learning
+REST properly this is genuinely valuable, and it costs about five lines of configuration.
+
+**A bonus you get later:** the business plan's Stage 4 envisages a public API. Having built
+REST from the start, that is an extension of what exists rather than a second system built
+alongside it.
 
 ### Prisma 7 + PostgreSQL 17
 
@@ -261,7 +288,7 @@ unusually well suited to it, because **its hardest logic is pure arithmetic**.
 
 | What we test | With | Why it is worth testing |
 | --- | --- | --- |
-| Score arithmetic | Vitest | Sums, vote changes, one-vote-per-user. The core promise of the product. |
+| Score arithmetic | Vitest | Sums, one-vote-per-user, and that a second vote is rejected. The core promise of the product. |
 | Screen ↔ world coordinates | Vitest | The maths behind pan and zoom. Fiddly, invisible, and the source of most map bugs. |
 | Fan-out layout | Vitest | Where items go when they share a score. Pure input → output. |
 | Visible-range culling | Vitest | Which items get drawn. A bug here means items vanish. |
@@ -292,12 +319,12 @@ at this scale.
   YOUR BROWSER                          YOUR COMPUTER (later: a rented server)
  ┌──────────────────────────┐          ┌────────────────────────────────────┐
  │  React 19  +  Vite       │          │  Fastify                           │
- │                          │          │    ├── tRPC        (the functions) │
- │  TanStack Router  screens│  tRPC    │    ├── Better Auth (logins)        │
- │  TanStack Query   data   │ ───────▶ │    └── Zod         (validation)    │
- │  Zustand          camera │ ◀─────── │              │                     │
- │  Tailwind+shadcn  looks  │          │           Prisma                   │
- │                          │          │              │                     │
+ │                          │  REST    │    ├── /api/items    (routes)      │
+ │  TanStack Router  screens│  over    │    ├── Better Auth   (logins)      │
+ │  TanStack Query   data   │  HTTP    │    └── Zod           (validation)  │
+ │  fetch wrapper    typing │ ───────▶ │              │                     │
+ │  Zustand          camera │ ◀─────── │           Prisma                   │
+ │  Tailwind+shadcn  looks  │          │              │                     │
  └──────────────────────────┘          │        PostgreSQL 17               │
                                        │        (running in Docker)         │
         ▲                              └────────────────────────────────────┘
@@ -324,7 +351,7 @@ absolute-best/
       tests/
     api/           The Fastify backend
       src/
-        router/            tRPC procedures — items, votes, auth
+        routes/            REST endpoints — items, votes, search, auth
         db/                Prisma schema and migrations
       tests/
   packages/
@@ -350,6 +377,7 @@ Recording these so the question does not get reopened without new information.
 | --- | --- |
 | **Next.js** (instead of Vite + Fastify) | Excellent framework, wrong shape here. Its strengths are server-rendered pages and SEO; this product is one heavily interactive canvas. It would also blur the frontend/backend boundary that `AGENT.md` §3 asks us to keep obvious. |
 | **NestJS** (instead of Fastify) | Enterprise-grade structure, and a genuinely steep learning curve built around concepts you do not need for a solo project. |
+| **tRPC** (instead of REST) | **Rejected by you at T2**, deliberately and for a good reason: REST is the transferable skill. tRPC would have meant slightly less code and no chance of the two sides drifting apart, but it is a niche technology and it could not have served Stage 4's public API. The shared Zod schema recovers most of the safety it would have given. |
 | **Drizzle** (instead of Prisma) | A good, lighter alternative — but it expects you to think in SQL, and it has no equivalent of Prisma Studio. Prisma is the friendlier choice while you are learning. Revisit if Prisma ever feels slow. |
 | **MongoDB** (instead of PostgreSQL) | Vote totals must be exactly right under concurrent access. Use the database built for that. |
 | **Canvas / WebGL rendering** (instead of HTML elements) | Faster at extreme item counts, but you must then rebuild hovering, clicking, keyboard access and screen-reader support from nothing. We render only the visible items as ordinary HTML, which stays accessible. If profiling later proves it too slow, the layout maths is already separate and can feed a canvas renderer instead. |
@@ -371,7 +399,7 @@ guide you can follow yourself.
 | **2** | The world line: camera, pan, zoom, mock items, fan-out. **No backend.** | Drag and scroll the map in your browser |
 | **3** | Item cards, search, the intro screen and animation | Hover an item, search for one |
 | **4** | Postgres in Docker, Prisma schema, seeded placeholder data | Open Prisma Studio and look at the data |
-| **5** | Fastify + tRPC, items loaded from the real database | The map now shows database items |
+| **5** | Fastify REST API, items loaded from the real database | The map now shows database items, and `/docs` lists every endpoint |
 | **6** | Better Auth: register, log in, log out | Create an account, refresh, stay logged in |
 | **7** | Drag-to-vote against the real database, with optimistic updates | Vote; refresh; the score persisted |
 | **8** | Quick Fire | Play a 10-item round |
@@ -402,12 +430,15 @@ hashed by Better Auth rather than by hand.
 
 ---
 
-## 12. Decisions I need from you
+## 12. Decisions — all answered
+
+> **Summary:** TypeScript ✓ · **REST, not tRPC** ✓ · map before database ✓ · Postgres in
+> Docker ✓. Your answers are preserved below exactly as you ticked them.
 
 **T1 — Do you accept TypeScript instead of plain JavaScript?** *(Section 3.1. My
 recommendation: yes.)*
 
-- [ ] Yes — TypeScript
+- [x] Yes — TypeScript
 - [ ] No — plain JavaScript, as the PDF said
 - [ ] Explain the difference to me again before I decide
 
@@ -417,19 +448,19 @@ TanStack tools you asked for. But REST is the more transferable skill, so this i
 legitimate either-way choice.)*
 
 - [ ] tRPC — optimise for building this product
-- [ ] REST — optimise for learning the industry-standard approach
+- [x] REST — optimise for learning the industry-standard approach
 - [ ] Your call
 
 **T3 — Build order: do you accept batches 2–3 (the map, with fake data) before the database
 in batch 4?** *(Section 10. My recommendation: yes — it de-risks the project cheaply.)*
 
-- [ ] Yes — prove the interaction first
+- [x] Yes — prove the interaction first
 - [ ] No — build the database and backend first
 - [ ] Other: `________________________`
 
 **T4 — Where should Postgres come from?** *(Docker is already installed on your machine.)*
 
-- [ ] Docker — one command, nothing to configure, easily reset *(recommended)*
+- [x] Docker — one command, nothing to configure, easily reset *(recommended)*
 - [ ] Install PostgreSQL directly on Windows
 - [ ] Your call
 
@@ -437,7 +468,7 @@ in batch 4?** *(Section 10. My recommendation: yes — it de-risks the project c
 repository is unchanged and no boxes are ticked — see the note at the top of my reply. D2
 (prototype vs. full product) and D8 (what success means) both affect this stack.
 
-- [ ] I will tick the boxes in `00-business-plan.md`
+- [x] I will tick the boxes in `00-business-plan.md`
 - [ ] I will tell you my answers in chat and you write them in
 
 ---
