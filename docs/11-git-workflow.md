@@ -111,15 +111,18 @@ Business plan decision **D4** says the repository is public.
 **Do this first, because it is far easier now than later.**
 
 Every git commit records an email address, and on a public repository **that address is
-visible to anyone, permanently, including automated address harvesters**. Your commits
-currently carry:
+visible to anyone, permanently, including automated address harvesters**.
 
-```
-[redacted]
-```
+The commits in this repository were originally created with a **work email address**, which
+must not be published on a personal project: it invites spam to a work inbox and ties
+company identity to a private venture. That address is deliberately not reproduced here, so
+that this document is safe to publish.
 
-That is your work address. Publishing it on a personal side project invites spam to your
-work inbox, and ties company identity to a private venture.
+To see what your commits currently carry:
+
+```powershell
+git log -1 --format='%an <%ae>'
+```
 
 **GitHub provides a private alternative** — an address of the form
 `12345678+username@users.noreply.github.com`, which works normally but reveals nothing.
