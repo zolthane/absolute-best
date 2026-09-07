@@ -2,10 +2,10 @@
 
 | | |
 | --- | --- |
-| **Version** | 0.1 — Draft |
+| **Version** | 1.0 |
 | **Date** | 2026-09-07 |
 | **Prepared for** | Zoltán Lovas |
-| **Status** | **AWAITING YOUR APPROVAL** |
+| **Status** | **APPROVED** by Lovas Zoltán, 2026-09-07 — see Section 13 |
 | **Purpose** | Agree *what* we are building and *why*, before we agree *how* |
 
 > **How to use this document.** Read it top to bottom. Anywhere you disagree, simply edit
@@ -117,7 +117,7 @@ Recording these now prevents a great deal of wasted work later.
   individual records. This is also a legal necessity — see Section 10.
 - **No mobile app initially.** The website is built to work in a phone browser; a native , although thinking on phone users there could be a fullscreen view mode
   app is a Stage 4 question at the earliest.
-- **No advertising.** It would compromise both the visual language and the credibility. But simple google adsense ads can be added. That could be turned of with one time pay.
+- **No advertising.** It would compromise both the visual language and the credibility.
 
 ---
 
@@ -436,38 +436,8 @@ notes, recorded so they are neither lost nor silently acted upon.
 | "Only people with wikipedia entry" (D3) | Section 14.3 below |
 | "Give suggestion for visible range" (Risk 7) | [Product spec §2](01-product-spec.md) — answered |
 | "We need filters!" | [Product spec §6, question Q6](01-product-spec.md) — awaiting your choice |
-| Google AdSense (Section 5) | Section 14.2 below |
-
-### 14.2 Google AdSense — flagged, not decided
-
-Your note sits inside the bullet that says "No advertising", so the two currently
-contradict each other. That is fine for now — but it is a real decision rather than a
-detail, and it carries costs that are not obvious.
-
-**What adding AdSense would require:**
-
-- **A consent banner, unavoidably.** AdSense sets advertising cookies, so under EU rules it
-  cannot run until the visitor agrees. Google additionally requires a *certified* consent
-  management platform for European traffic. This is the single biggest cost — it is the
-  first thing every visitor sees, on a product whose whole appeal is a clean, uninterrupted
-  map.
-- **A compliance review**, per Section 11. AdSense sends visitor data to Google, which
-  makes Google a processor and brings transfer and disclosure obligations with it.
-- **A privacy policy that discloses it**, before the first advert is served.
-
-**Honest assessment:** at 10,000 users, display advertising on a site like this would
-realistically bring in tens of euros per month — a fraction of the €2,000 the supporter
-tier is modelled at in Section 17, for considerably more compliance work and a visibly
-worse first impression. Advertising tends to pay only at a scale this product will not
-reach for years.
-
-**Recommendation: keep "no advertising" for Stages 0–2, and revisit at Stage 3** alongside
-the supporter tier, where "pay once to remove ads" naturally belongs. Your instinct that
-ads should be removable by payment is sound; it just needs the payment system to exist
-first.
-
-**Not acting on this either way** until you decide. The bullet in Section 5 is left exactly
-as you wrote it.
+| Google AdSense (Section 5) | **Withdrawn by you, 2026-09-07.** The note is removed and "No advertising" stands unqualified. |
+| "We need filters!" — automatic tagging idea | [Tagging and filters](04-tagging-and-filters.md) |
 
 ### 14.3 D3 — "Only people with wikipedia entry"
 

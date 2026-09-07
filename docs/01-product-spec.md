@@ -324,24 +324,13 @@ many voters.
 **Q5 — SETTLED.** For a logged-out visitor, **every item is locked**. They may look, search
 and move around the map, but nothing is draggable. Rule R11.
 
-**Q6 — NEW, open. "We need filters!"** (Your note in the approved business plan.) Agreed,
-and the original PDF lists filters too. But "filter" could mean several different things,
-and they are not equally useful at Stage 0 — with films only, filtering by category would
-have nothing to do. Which do you want?
+**Q6 — MOVED.** Filters grew into their own subject once you proposed deriving tags
+automatically from Wikipedia. It now has a dedicated document:
+**[04-tagging-and-filters.md](04-tagging-and-filters.md)**, where decisions F1–F4 are
+waiting.
 
-- [ ] **By category** — films, music, books… *(does nothing until Stage 2, when there is more than one category)*
-- [ ] **By score range** — "show me only things below −50"
-- [ ] **By participation** — "only items with more than 100 voters", hiding the obscure
-- [ ] **Most divisive** — high participation, score near zero *(the business plan calls this out as a headline view)*
-- [ ] **Unvoted by me** — hide everything I have already voted on *(pairs naturally with the locking rule R6)*
-- [ ] **Recently added**
-- [ ] Other: `________________________`
-
-> **My recommendation:** pick **two** for the first version. "Most divisive" and "unvoted by
-> me" are the two that change what the map is *for*, rather than just hiding things. The
-> rest are easy to add later, and each one added now is another control competing with the
-> map for attention — the business plan's guiding principle is that the graph is the
-> product.
+Nothing about filters is built in Stage 0 beyond a few invented tags on placeholder items,
+so this does not block the map.
 
 > **One consequence of Q4 + Q5 worth noting.** For a logged-out visitor the entire map is
 > grey, which means the colour that signals "you can vote here" is never seen by the people

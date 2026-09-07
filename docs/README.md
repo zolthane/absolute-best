@@ -14,6 +14,7 @@ directly on GitHub. **You cannot break anything by editing them.**
 | 01 | [Product spec — Part 1](01-product-spec.md) | The map and voting, interaction by interaction | **Awaiting your approval** |
 | 02 | [Technology stack](02-tech-stack.md) | Which tools we build with, and why each one | **Awaiting your approval** |
 | 03 | `03-build-checklist.md` | The ordered list of build steps, tickable as we go | Not written yet |
+| 04 | [Tagging and filters](04-tagging-and-filters.md) | Automatic tags from Wikidata, and which filters are free vs premium | **Awaiting your approval** |
 | 10 | [Local setup](10-local-setup.md) | How to get your machine ready | Available now — a how-to, not a plan to approve |
 | 99 | [Glossary](99-glossary.md) | Plain-language explanations of the technical words | Available now |
 
