@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   type Camera,
   clampZoom,
+  interpolateCamera,
   MAX_ZOOM,
   MIN_ZOOM,
   panCamera,
@@ -104,5 +105,41 @@ describe("clampZoom", () => {
   it("treats non-finite input as the minimum zoom rather than propagating NaN", () => {
     expect(clampZoom(Number.NaN)).toBe(MIN_ZOOM);
     expect(clampZoom(Number.POSITIVE_INFINITY)).toBe(MIN_ZOOM);
+  });
+});
+
+describe("interpolateCamera", () => {
+  const from: Camera = { center: 0, zoom: 1 };
+  const to: Camera = { center: 100, zoom: 16 };
+
+  it("returns the start camera at t=0 and the end camera at t=1", () => {
+    expect(interpolateCamera(from, to, 0)).toEqual(from);
+    const atEnd = interpolateCamera(from, to, 1);
+    expect(atEnd.center).toBe(to.center);
+    expect(atEnd.zoom).toBeCloseTo(to.zoom, 9);
+  });
+
+  it("moves monotonically from start to end as t increases", () => {
+    const centers = [0, 0.25, 0.5, 0.75, 1].map((t) => interpolateCamera(from, to, t).center);
+    for (let i = 1; i < centers.length; i++) {
+      const previous = centers[i - 1];
+      const current = centers[i];
+      if (previous === undefined || current === undefined) throw new Error("fixture error");
+      expect(current).toBeGreaterThan(previous);
+    }
+  });
+
+  it("interpolates zoom multiplicatively rather than linearly", () => {
+    // Linearly, the midpoint zoom would be (1+16)/2 = 8.5. In log space
+    // (matching how zoom naturally works) it should be sqrt(1*16) = 4.
+    const midpoint = interpolateCamera(from, to, 0.5);
+    expect(midpoint.zoom).toBeCloseTo(4, 5);
+  });
+
+  it("clamps t outside [0, 1] rather than overshooting", () => {
+    expect(interpolateCamera(from, to, -1)).toEqual(from);
+    const beyondEnd = interpolateCamera(from, to, 2);
+    expect(beyondEnd.center).toBe(to.center);
+    expect(beyondEnd.zoom).toBeCloseTo(to.zoom, 9);
   });
 });

@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Item } from "../../../data/mockItems";
 import { useCameraStore } from "../cameraStore";
 import { WorldViewport } from "../WorldViewport";
@@ -101,7 +101,9 @@ describe("WorldViewport", () => {
 
   describe("items", () => {
     it("positions a dot at the screen location of its score", () => {
-      const items: Item[] = [{ id: "1", title: "Solo", score: 20, voterCount: 100, order: 0 }];
+      const items: Item[] = [
+        { id: "1", title: "Solo", score: 20, voterCount: 100, order: 0, tags: [] },
+      ];
       render(<WorldViewport items={items} />);
 
       // camera is { center: 0, zoom: 4 }, viewportWidth 1000: worldToScreen(20) = 20*4 + 500 = 580.
@@ -109,7 +111,9 @@ describe("WorldViewport", () => {
     });
 
     it("positions the single most-voted item at the top of its headroom", () => {
-      const items: Item[] = [{ id: "1", title: "Solo", score: 0, voterCount: 100, order: 0 }];
+      const items: Item[] = [
+        { id: "1", title: "Solo", score: 0, voterCount: 100, order: 0, tags: [] },
+      ];
       render(<WorldViewport items={items} />);
 
       const axisTopPx = 0.8 * window.innerHeight;
@@ -121,7 +125,9 @@ describe("WorldViewport", () => {
     });
 
     it("does not crash or misplace an item with zero voters", () => {
-      const items: Item[] = [{ id: "1", title: "Unvoted", score: 0, voterCount: 0, order: 0 }];
+      const items: Item[] = [
+        { id: "1", title: "Unvoted", score: 0, voterCount: 0, order: 0, tags: [] },
+      ];
       render(<WorldViewport items={items} />);
 
       const dot = screen.getByTestId("item-dot");
@@ -131,8 +137,8 @@ describe("WorldViewport", () => {
 
     it("only renders items within the visible (buffered) range", () => {
       const items: Item[] = [
-        { id: "near", title: "Near", score: 0, voterCount: 10, order: 0 },
-        { id: "far", title: "Far", score: 1_000_000, voterCount: 10, order: 1 },
+        { id: "near", title: "Near", score: 0, voterCount: 10, order: 0, tags: [] },
+        { id: "far", title: "Far", score: 1_000_000, voterCount: 10, order: 1, tags: [] },
       ];
       render(<WorldViewport items={items} />);
 
@@ -150,8 +156,8 @@ describe("WorldViewport", () => {
       // giving them different voterCount would have put them in different
       // Y cells, which is a distinct behaviour, not what this test is for.
       const items: Item[] = [
-        { id: "a", title: "Alpha", score: 2, voterCount: 100, order: 0 },
-        { id: "b", title: "Beta", score: 3, voterCount: 100, order: 1 },
+        { id: "a", title: "Alpha", score: 2, voterCount: 100, order: 0, tags: [] },
+        { id: "b", title: "Beta", score: 3, voterCount: 100, order: 1, tags: [] },
       ];
       render(<WorldViewport items={items} />);
 
@@ -164,8 +170,8 @@ describe("WorldViewport", () => {
 
     it("keeps items in different cells as separate dots", () => {
       const items: Item[] = [
-        { id: "a", title: "Alpha", score: -50, voterCount: 10, order: 0 },
-        { id: "b", title: "Beta", score: 50, voterCount: 10, order: 1 },
+        { id: "a", title: "Alpha", score: -50, voterCount: 10, order: 0, tags: [] },
+        { id: "b", title: "Beta", score: 50, voterCount: 10, order: 1, tags: [] },
       ];
       render(<WorldViewport items={items} />);
 
@@ -173,28 +179,32 @@ describe("WorldViewport", () => {
     });
 
     it("shows a label only for a dot that is alone in its cell", () => {
-      const alone: Item[] = [{ id: "a", title: "Alpha", score: 0, voterCount: 10, order: 0 }];
+      const alone: Item[] = [
+        { id: "a", title: "Alpha", score: 0, voterCount: 10, order: 0, tags: [] },
+      ];
       const { unmount } = render(<WorldViewport items={alone} />);
       expect(screen.getByTestId("item-label")).toHaveTextContent("Alpha");
       unmount();
 
       const crowded: Item[] = [
-        { id: "a", title: "Alpha", score: 2, voterCount: 100, order: 0 },
-        { id: "b", title: "Beta", score: 3, voterCount: 100, order: 1 },
+        { id: "a", title: "Alpha", score: 2, voterCount: 100, order: 0, tags: [] },
+        { id: "b", title: "Beta", score: 3, voterCount: 100, order: 1, tags: [] },
       ];
       render(<WorldViewport items={crowded} />);
       expect(screen.queryByTestId("item-label")).not.toBeInTheDocument();
     });
 
     it("draws a larger dot for a more crowded cell than for a lone item", () => {
-      const alone: Item[] = [{ id: "a", title: "Alpha", score: 0, voterCount: 10, order: 0 }];
+      const alone: Item[] = [
+        { id: "a", title: "Alpha", score: 0, voterCount: 10, order: 0, tags: [] },
+      ];
       const { unmount } = render(<WorldViewport items={alone} />);
       const aloneSize = Number.parseFloat(screen.getByTestId("item-dot").style.width);
       unmount();
 
       const crowded: Item[] = [
-        { id: "a", title: "Alpha", score: 2, voterCount: 100, order: 0 },
-        { id: "b", title: "Beta", score: 3, voterCount: 100, order: 1 },
+        { id: "a", title: "Alpha", score: 2, voterCount: 100, order: 0, tags: [] },
+        { id: "b", title: "Beta", score: 3, voterCount: 100, order: 1, tags: [] },
       ];
       render(<WorldViewport items={crowded} />);
       const crowdedSize = Number.parseFloat(screen.getByTestId("item-dot").style.width);
@@ -204,8 +214,8 @@ describe("WorldViewport", () => {
 
     it("does not reshuffle which items are shown when panning less than one cell", () => {
       const items: Item[] = [
-        { id: "a", title: "Alpha", score: -50, voterCount: 10, order: 0 },
-        { id: "b", title: "Beta", score: 50, voterCount: 10, order: 1 },
+        { id: "a", title: "Alpha", score: -50, voterCount: 10, order: 0, tags: [] },
+        { id: "b", title: "Beta", score: 50, voterCount: 10, order: 1, tags: [] },
       ];
       render(<WorldViewport items={items} />);
       const before = screen.getAllByTestId("item-dot").map((dot) => dot.style.left);
@@ -225,6 +235,78 @@ describe("WorldViewport", () => {
           9,
         );
       }
+    });
+  });
+
+  describe("item cards and focusing (batch 5)", () => {
+    const items: Item[] = [
+      {
+        id: "a",
+        title: "Alpha",
+        score: 35,
+        voterCount: 100,
+        order: 0,
+        tags: ["Drama", "1990s"],
+      },
+    ];
+
+    it("shows a card with the item's name, score and voter count on hover", () => {
+      render(<WorldViewport items={items} />);
+      expect(screen.queryByTestId("item-card")).not.toBeInTheDocument();
+
+      fireEvent.mouseEnter(screen.getByTestId("item-dot"));
+
+      const card = screen.getByTestId("item-card");
+      expect(card).toHaveTextContent("Alpha");
+      expect(card).toHaveTextContent("Score 35");
+      expect(card).toHaveTextContent("100 voters");
+      expect(card).toHaveTextContent("Drama");
+    });
+
+    it("hides the card once the mouse leaves the dot", () => {
+      render(<WorldViewport items={items} />);
+      const dot = screen.getByTestId("item-dot");
+
+      fireEvent.mouseEnter(dot);
+      expect(screen.getByTestId("item-card")).toBeInTheDocument();
+
+      fireEvent.mouseLeave(dot);
+      expect(screen.queryByTestId("item-card")).not.toBeInTheDocument();
+    });
+
+    it("focuses the clicked item by animating the camera to centre it", () => {
+      // The glide itself (eased, not instant) is exhaustively covered by
+      // interpolateCamera's own tests in packages/shared, and running the
+      // animation for real depends on requestAnimationFrame timestamps
+      // lining up with performance.now() - true in a real browser, not
+      // reliable in jsdom. This only proves clicking a dot computes the
+      // right focus camera and hands it to the store's animation.
+      render(<WorldViewport items={items} />);
+      // Mocked rather than left to call through: jsdom's requestAnimationFrame
+      // timestamps don't line up with performance.now(), so the real
+      // implementation would start a loop that never reaches t=1 and leaks
+      // into later tests.
+      const animateTo = vi
+        .spyOn(useCameraStore.getState(), "animateTo")
+        .mockImplementation(() => {});
+
+      fireEvent.click(screen.getByTestId("item-dot"));
+
+      expect(animateTo).toHaveBeenCalledTimes(1);
+      const target = animateTo.mock.calls[0]?.[0];
+      expect(target?.center).toBe(35);
+      animateTo.mockRestore();
+    });
+
+    it("writes the camera position into the web address", () => {
+      render(<WorldViewport items={items} />);
+
+      act(() => {
+        useCameraStore.setState({ camera: { center: 12.5, zoom: 8 }, viewportWidth: 1000 });
+      });
+
+      expect(window.location.search).toContain("c=12.5");
+      expect(window.location.search).toContain("z=8");
     });
   });
 });

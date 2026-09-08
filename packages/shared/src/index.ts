@@ -1,6 +1,7 @@
 export {
   type Camera,
   clampZoom,
+  interpolateCamera,
   MAX_ZOOM,
   MIN_ZOOM,
   panCamera,
@@ -8,7 +9,9 @@ export {
   worldToScreen,
   zoomCameraAtPoint,
 } from "./camera";
+export { cameraFromUrlParams, cameraToUrlParams } from "./cameraUrl";
 export { fitCameraToItems } from "./entryView";
+export { computeFocusCamera } from "./focus";
 export {
   type GridCell,
   type GridCellAssignment,

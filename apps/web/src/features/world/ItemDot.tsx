@@ -5,18 +5,36 @@ interface ItemDotProps {
   count: number;
   sizePx: number;
   opacity: number;
+  onHoverStart: () => void;
+  onHoverEnd: () => void;
+  onSelect: () => void;
 }
 
 // The dot and its label are siblings, not parent/child: opacity applies to
 // an element's whole subtree in CSS, so a label nested inside a dimmed dot
 // would be dimmed along with it and become hard to read for a lone item.
-export function ItemDot({ screenX, screenY, title, count, sizePx, opacity }: ItemDotProps) {
+export function ItemDot({
+  screenX,
+  screenY,
+  title,
+  count,
+  sizePx,
+  opacity,
+  onHoverStart,
+  onHoverEnd,
+  onSelect,
+}: ItemDotProps) {
   return (
     <>
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: keyboard access to items is tracked as Stage 1 work (docs/05-supporting-features.md, decision S6), not built yet. */}
+      {/* biome-ignore lint/a11y/useKeyWithClickEvents: same as above - S6 covers this dot too. */}
       <div
         data-testid="item-dot"
-        className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full bg-black"
+        className="-translate-x-1/2 -translate-y-1/2 absolute cursor-pointer rounded-full bg-black"
         style={{ left: screenX, top: screenY, width: sizePx, height: sizePx, opacity }}
+        onMouseEnter={onHoverStart}
+        onMouseLeave={onHoverEnd}
+        onClick={onSelect}
       />
       {count === 1 && (
         <span

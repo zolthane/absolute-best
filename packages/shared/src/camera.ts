@@ -54,3 +54,24 @@ export function zoomCameraAtPoint(
   const center = worldAtPointer - (pointerScreenX - viewportWidth / 2) / zoom;
   return { center, zoom };
 }
+
+function easeInOutCubic(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
+}
+
+/**
+ * A point partway between two cameras, for animating a "glide" (product
+ * spec, section 3: focusing an item animates smoothly, it does not jump).
+ * `t` runs from 0 (`from`) to 1 (`to`) and is eased rather than linear, so
+ * the motion starts and ends gently. `zoom` is interpolated in log space,
+ * since zoom is naturally multiplicative - lerping it directly would make
+ * the zoom change feel front- or back-loaded instead of even.
+ */
+export function interpolateCamera(from: Camera, to: Camera, t: number): Camera {
+  const eased = easeInOutCubic(Math.min(1, Math.max(0, t)));
+  const logZoom = Math.log(from.zoom) + (Math.log(to.zoom) - Math.log(from.zoom)) * eased;
+  return {
+    center: from.center + (to.center - from.center) * eased,
+    zoom: clampZoom(Math.exp(logZoom)),
+  };
+}

@@ -1,4 +1,6 @@
 import {
+  cameraToUrlParams,
+  computeFocusCamera,
   computeNiceTicks,
   filterByVisibleRange,
   type GridCellAssignment,
@@ -13,6 +15,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { type Item, mockItems } from "../../data/mockItems";
 import { useCameraStore } from "./cameraStore";
+import { ItemCard } from "./ItemCard";
 import { ItemDot } from "./ItemDot";
 
 interface Point {
@@ -57,10 +60,7 @@ const DOT_MAX_SIZE_PX = 22;
 const DOT_MIN_OPACITY = 0.45;
 
 interface GridItem extends GridCellAssignment {
-  id: string;
-  title: string;
-  voterCount: number;
-  order: number;
+  item: Item;
   screenX: number;
   screenY: number;
 }
@@ -69,7 +69,9 @@ interface GridItem extends GridCellAssignment {
 // simply for a fully deterministic tiebreaker (any consistent rule would
 // serve the same stability goal - this happens to be the one chosen).
 function compareGridItems(a: GridItem, b: GridItem): number {
-  return a.voterCount !== b.voterCount ? b.voterCount - a.voterCount : a.order - b.order;
+  return a.item.voterCount !== b.item.voterCount
+    ? b.item.voterCount - a.item.voterCount
+    : a.item.order - b.item.order;
 }
 
 interface WorldViewportProps {
@@ -83,6 +85,11 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   const camera = useCameraStore((state) => state.camera);
   const viewportWidth = useCameraStore((state) => state.viewportWidth);
   const [viewportHeight, setViewportHeight] = useState(() => window.innerHeight);
+  // Just the id, not the whole GridItem: that object's screenX/screenY would
+  // go stale if the camera moves while hovering (e.g. zooming with the wheel
+  // without moving the mouse) - looking it up fresh from `cells` every
+  // render keeps the card's position always current.
+  const [hoveredItemId, setHoveredItemId] = useState<string | null>(null);
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const worldContentRef = useRef<HTMLDivElement>(null);
@@ -127,6 +134,14 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
     element.addEventListener("wheel", handleWheel, { passive: false });
     return () => element.removeEventListener("wheel", handleWheel);
   }, []);
+
+  // Keeps the address bar in sync with the camera (product spec, section 3:
+  // the camera position is a shareable link). replaceState, not pushState -
+  // panning around should not fill the browser's back button with history.
+  useEffect(() => {
+    const params = cameraToUrlParams(camera);
+    window.history.replaceState(null, "", `?${params.toString()}`);
+  }, [camera]);
 
   // Ends a single-pointer pan gesture, if one is in progress: commits the
   // total drag distance to the camera store in one call, then clears the
@@ -243,10 +258,7 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
     const screenY =
       axisTopPx - logScale(item.voterCount, 1, maxVoterCount, 0, maxDotHeightAboveAxis);
     return {
-      id: item.id,
-      title: item.title,
-      voterCount: item.voterCount,
-      order: item.order,
+      item,
       screenX: worldToScreen(item.score, camera, viewportWidth),
       screenY,
       // X is anchored in world space (zoom-derived cell width, no pan term
@@ -260,6 +272,11 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
     };
   });
   const cells = sampleGrid(gridItems, compareGridItems);
+  const hoveredCell = cells.find((cell) => cell.representative.item.id === hoveredItemId);
+
+  const handleDotSelect = (item: Item) => {
+    useCameraStore.getState().animateTo(computeFocusCamera(item, items, viewportWidth));
+  };
 
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: keyboard access to the map is tracked as Stage 1 work (docs/05-supporting-features.md, decision S6), not built yet.
@@ -325,7 +342,7 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
             // (see the comment in mockItems.ts), and real votes make a
             // 0-voter item with a nonzero score impossible by construction.
             screenY={representative.screenY}
-            title={representative.title}
+            title={representative.item.title}
             count={count}
             sizePx={logScale(
               count,
@@ -335,8 +352,21 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
               DOT_MAX_SIZE_PX,
             )}
             opacity={logScale(count, 1, MAX_CELL_DENSITY_FOR_STYLING, DOT_MIN_OPACITY, 1)}
+            onHoverStart={() => setHoveredItemId(representative.item.id)}
+            onHoverEnd={() =>
+              setHoveredItemId((current) => (current === representative.item.id ? null : current))
+            }
+            onSelect={() => handleDotSelect(representative.item)}
           />
         ))}
+
+        {hoveredCell && (
+          <ItemCard
+            item={hoveredCell.representative.item}
+            screenX={hoveredCell.representative.screenX}
+            screenY={hoveredCell.representative.screenY}
+          />
+        )}
       </div>
     </div>
   );

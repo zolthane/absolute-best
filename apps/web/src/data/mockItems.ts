@@ -7,11 +7,33 @@ export interface Item {
   // database exists - used to break "most-voted" ties deterministically
   // when several items share a grid cell (product spec Q3b: oldest wins).
   order: number;
+  // Invented, not real classification - Stage 0 has no tagging pipeline yet
+  // (see docs/04-tagging-and-filters.md F4). Just enough for the item card
+  // and future filter UI to have something to show.
+  tags: string[];
 }
 
 const ITEM_COUNT = 200;
 const SCORE_RANGE = 80;
 const MAX_VOTER_LOG_EXPONENT = 3.5; // up to roughly 3,162 voters
+const TAGS_PER_ITEM = 2;
+
+// A small, clearly-invented pool - real tagging (Wikidata-derived) arrives in
+// Stage 1.
+const TAG_POOL = [
+  "Drama",
+  "Comedy",
+  "Sci-Fi",
+  "Documentary",
+  "Animated",
+  "1980s",
+  "1990s",
+  "2000s",
+  "Cult Classic",
+  "Blockbuster",
+  "Indie",
+  "Foreign",
+];
 
 // A fixed seed, not Math.random(): the map must look exactly the same on
 // every reload. Reshuffling placeholder items on refresh would make the
@@ -29,6 +51,16 @@ function mulberry32(seed: number): () => number {
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
+}
+
+function pickTags(random: () => number): string[] {
+  const pool = [...TAG_POOL];
+  const picked: string[] = [];
+  for (let i = 0; i < TAGS_PER_ITEM; i++) {
+    const index = Math.floor(random() * pool.length);
+    picked.push(...pool.splice(index, 1));
+  }
+  return picked;
 }
 
 function generateMockItems(): Item[] {
@@ -53,6 +85,7 @@ function generateMockItems(): Item[] {
       score,
       voterCount,
       order: index,
+      tags: pickTags(random),
     };
   });
 }
