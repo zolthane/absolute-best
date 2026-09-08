@@ -2,11 +2,17 @@ import {
   type Camera,
   cameraFromUrlParams,
   fitCameraToItems,
+  fitVerticalCameraToItems,
   interpolateCamera,
+  minZoomYForItems,
   panCamera,
+  panCameraY,
   screenToWorld,
+  type VerticalCamera,
+  verticalCameraFromUrlParams,
   worldToScreen,
   zoomCameraAtPoint,
+  zoomCameraAtPointY,
 } from "@teeter/shared";
 import { create } from "zustand";
 import { mockItems } from "../../data/mockItems";
@@ -26,18 +32,41 @@ function initialCamera(viewportWidth: number): Camera {
   return fromUrl ?? fitCameraToItems(mockItems, viewportWidth);
 }
 
+// The Y equivalent of initialCamera (batch 6b) - see verticalEntryView.ts
+// for why its entry view isn't simply "fit everything to one screen".
+function initialVerticalCamera(viewportHeight: number): VerticalCamera {
+  const minZoomY = minZoomYForItems(mockItems, viewportHeight);
+  const fromUrl = verticalCameraFromUrlParams(
+    new URLSearchParams(window.location.search),
+    minZoomY,
+  );
+  return fromUrl ?? fitVerticalCameraToItems(mockItems, viewportHeight);
+}
+
 interface CameraState {
   camera: Camera;
+  cameraY: VerticalCamera;
   viewportWidth: number;
+  viewportHeight: number;
   setViewportWidth: (width: number) => void;
+  setViewportHeight: (height: number) => void;
   pan: (deltaScreenX: number) => void;
+  panY: (deltaScreenY: number) => void;
   zoomAt: (pointerScreenX: number, zoomFactor: number) => void;
+  zoomAtY: (
+    pointerScreenY: number,
+    anchorScreenY: number,
+    zoomFactor: number,
+    minZoomY: number,
+  ) => void;
   animateTo: (target: Camera) => void;
 }
 
 export const useCameraStore = create<CameraState>((set, get) => ({
   camera: initialCamera(window.innerWidth),
+  cameraY: initialVerticalCamera(window.innerHeight),
   viewportWidth: window.innerWidth,
+  viewportHeight: window.innerHeight,
 
   setViewportWidth: (width) => {
     // Only the very first real measurement sets the initial zoom - later
@@ -49,11 +78,31 @@ export const useCameraStore = create<CameraState>((set, get) => ({
     }));
   },
 
+  setViewportHeight: (height) => {
+    const { viewportHeight } = get();
+    set((state) => ({
+      viewportHeight: height,
+      cameraY: viewportHeight === 0 ? initialVerticalCamera(height) : state.cameraY,
+    }));
+  },
+
   pan: (deltaScreenX) => set((state) => ({ camera: panCamera(state.camera, deltaScreenX) })),
+  panY: (deltaScreenY) => set((state) => ({ cameraY: panCameraY(state.cameraY, deltaScreenY) })),
 
   zoomAt: (pointerScreenX, zoomFactor) =>
     set((state) => ({
       camera: zoomCameraAtPoint(state.camera, state.viewportWidth, pointerScreenX, zoomFactor),
+    })),
+
+  zoomAtY: (pointerScreenY, anchorScreenY, zoomFactor, minZoomY) =>
+    set((state) => ({
+      cameraY: zoomCameraAtPointY(
+        state.cameraY,
+        anchorScreenY,
+        pointerScreenY,
+        zoomFactor,
+        minZoomY,
+      ),
     })),
 
   animateTo: (target) => {

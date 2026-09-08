@@ -2,15 +2,20 @@ import {
   cameraToUrlParams,
   computeFocusCamera,
   computeNiceTicks,
+  declutterLabels,
   filterByVisibleRange,
   type GridCellAssignment,
+  type LabelCandidate,
   logScale,
+  minZoomYForItems,
   nextGridZoom,
   sampleGrid,
-  screenPositionToCellIndex,
   screenToWorld,
+  screenToWorldY,
+  verticalCameraToUrlParams,
   worldPositionToCellIndex,
   worldToScreen,
+  worldToScreenY,
 } from "@teeter/shared";
 import { useEffect, useRef, useState } from "react";
 import { type Item, mockItems } from "../../data/mockItems";
@@ -27,6 +32,10 @@ interface Point {
 
 function distanceBetween(a: Point, b: Point): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function formatVoterTickLabel(decade: number): string {
+  return (10 ** decade).toLocaleString();
 }
 
 // Batch 1 has no items yet. Positioning the axis low leaves headroom above
@@ -50,11 +59,6 @@ const PAN_BUFFER_FACTOR = 2;
 // handlePointerMove's comment for why that matters for clicking an item.
 const DRAG_THRESHOLD_PX = 4;
 
-// How many voters the single most-voted item on screen would need before
-// its dot reaches the very top of its headroom. Chosen per render from the
-// actual data instead, so this is only the floor for an otherwise-empty map.
-const MIN_VOTER_DOMAIN_MAX = 10;
-
 // Product spec section 2: ~40x40 screen pixels per grid cell, at any zoom.
 const GRID_CELL_SIZE_PX = 40;
 
@@ -65,6 +69,14 @@ const MAX_CELL_DENSITY_FOR_STYLING = 50;
 const DOT_MIN_SIZE_PX = 8;
 const DOT_MAX_SIZE_PX = 22;
 const DOT_MIN_OPACITY = 0.45;
+
+// A rough estimate of a label's on-screen box, used only to decide whether
+// two labels would collide (labelDeclutter.ts) - not exact text
+// measurement, the same fixed-estimate approach ItemCard already uses for
+// its own flip-above/below decision.
+const LABEL_CHAR_WIDTH_PX = 5.5;
+const LABEL_TEXT_PADDING_PX = 6;
+const LABEL_HEIGHT_PX = 14;
 
 interface GridItem extends GridCellAssignment {
   item: Item;
@@ -83,16 +95,17 @@ function compareGridItems(a: GridItem, b: GridItem): number {
 
 interface WorldViewportProps {
   // Overridable so tests can render a small, known set of items instead of
-  // the real ~200-item mock data set - the mock data's own exact positions
+  // the real ~500-item mock data set - the mock data's own exact positions
   // are an implementation detail this component should not be coupled to.
   items?: Item[];
 }
 
 export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   const camera = useCameraStore((state) => state.camera);
+  const cameraY = useCameraStore((state) => state.cameraY);
   const viewportWidth = useCameraStore((state) => state.viewportWidth);
+  const viewportHeight = useCameraStore((state) => state.viewportHeight);
   const isLoggedIn = useAuthStore((state) => state.username !== null);
-  const [viewportHeight, setViewportHeight] = useState(() => window.innerHeight);
   // Just the id, not the whole GridItem: that object's screenX/screenY would
   // go stale if the camera moves while hovering (e.g. zooming with the wheel
   // without moving the mouse) - looking it up fresh from `cells` every
@@ -102,12 +115,14 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const worldContentRef = useRef<HTMLDivElement>(null);
   const activePointers = useRef(new Map<number, Point>());
-  const panGestureStartX = useRef<number | null>(null);
+  const panGestureStart = useRef<Point | null>(null);
   const pinchStartDistance = useRef<number | null>(null);
-  // The zoom the grid last used - deliberately separate from camera.zoom
-  // itself, so nextGridZoom can hold it still against noise. See
-  // nextGridZoom's doc comment for why.
+  // The zoom the grid last used - deliberately separate from the camera's
+  // own zoom, so nextGridZoom can hold it still against noise. See
+  // nextGridZoom's doc comment for why. One per axis, since X and Y now
+  // zoom independently (batch 6b).
   const gridZoomRef = useRef(camera.zoom);
+  const gridZoomYRef = useRef(cameraY.zoomY);
 
   // The viewport is assumed to fill the browser window (see App.tsx), so
   // window dimensions double as viewport dimensions - this sidesteps
@@ -115,11 +130,17 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   useEffect(() => {
     const handleResize = () => {
       useCameraStore.getState().setViewportWidth(window.innerWidth);
-      setViewportHeight(window.innerHeight);
+      useCameraStore.getState().setViewportHeight(window.innerHeight);
     };
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  const axisTopPx = (AXIS_TOP_PERCENT / 100) * viewportHeight;
+  // The floor vertical zoom can never go below - see minZoomYForItems. Read
+  // fresh from the current data/viewport every render, then closed over by
+  // the wheel listener below via its dependency array.
+  const minZoomY = minZoomYForItems(items, viewportHeight);
 
   // A native, non-passive listener: React's synthetic onWheel is attached
   // passively, so calling preventDefault() there is silently ignored (and
@@ -138,30 +159,39 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
       const sensitivity = event.ctrlKey ? 0.02 : 0.004;
       const zoomFactor = Math.exp(-event.deltaY * sensitivity);
       useCameraStore.getState().zoomAt(event.clientX, zoomFactor);
+      useCameraStore.getState().zoomAtY(event.clientY, axisTopPx, zoomFactor, minZoomY);
     };
     element.addEventListener("wheel", handleWheel, { passive: false });
     return () => element.removeEventListener("wheel", handleWheel);
-  }, []);
+  }, [axisTopPx, minZoomY]);
 
   // Keeps the address bar in sync with the camera (product spec, section 3:
   // the camera position is a shareable link). replaceState, not pushState -
   // panning around should not fill the browser's back button with history.
   useEffect(() => {
     const params = cameraToUrlParams(camera);
+    const verticalParams = verticalCameraToUrlParams(cameraY);
+    for (const [key, value] of verticalParams) {
+      params.set(key, value);
+    }
     window.history.replaceState(null, "", `?${params.toString()}`);
-  }, [camera]);
+  }, [camera, cameraY]);
 
-  // Ends a single-pointer pan gesture, if one is in progress: commits the
-  // total drag distance to the camera store in one call, then clears the
-  // live preview transform. Safe to call unconditionally - a no-op when
-  // there was no pan to end (mid-pinch, or nothing happening at all).
-  const endPanIfActive = (finalClientX: number) => {
-    if (panGestureStartX.current !== null) {
-      const finalDelta = finalClientX - panGestureStartX.current;
-      if (finalDelta !== 0) {
-        useCameraStore.getState().pan(finalDelta);
+  // Ends a pan gesture, if one is in progress: commits the total drag
+  // distance to the camera store in one call per axis, then clears the live
+  // preview transform. Safe to call unconditionally - a no-op when there was
+  // no pan to end (mid-pinch, or nothing happening at all).
+  const endPanIfActive = (finalClientX: number, finalClientY: number) => {
+    if (panGestureStart.current !== null) {
+      const finalDeltaX = finalClientX - panGestureStart.current.x;
+      const finalDeltaY = finalClientY - panGestureStart.current.y;
+      if (finalDeltaX !== 0) {
+        useCameraStore.getState().pan(finalDeltaX);
       }
-      panGestureStartX.current = null;
+      if (finalDeltaY !== 0) {
+        useCameraStore.getState().panY(finalDeltaY);
+      }
+      panGestureStart.current = null;
     }
     if (worldContentRef.current) {
       worldContentRef.current.style.transform = "";
@@ -177,12 +207,12 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
       // would retarget the click event a plain tap ends with to this div
       // instead of whichever item dot was actually clicked, silently
       // breaking "click an item to focus it" for every click, moved or not.
-      panGestureStartX.current = event.clientX;
+      panGestureStart.current = { x: event.clientX, y: event.clientY };
       pinchStartDistance.current = null;
     } else if (activePointers.current.size === 2) {
       const [a, b] = [...activePointers.current.values()];
       if (a && b) {
-        endPanIfActive(a.x);
+        endPanIfActive(a.x, a.y);
         pinchStartDistance.current = distanceBetween(a, b);
         // A pinch always involves both pointers moving, so there is no
         // click to protect here - capturing immediately is safe.
@@ -197,19 +227,21 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
     }
     activePointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
 
-    if (activePointers.current.size === 1 && panGestureStartX.current !== null) {
-      const liveDeltaX = event.clientX - panGestureStartX.current;
+    if (activePointers.current.size === 1 && panGestureStart.current !== null) {
+      const liveDeltaX = event.clientX - panGestureStart.current.x;
+      const liveDeltaY = event.clientY - panGestureStart.current.y;
       // Once the pointer has genuinely moved, this is a drag rather than a
       // tap - safe to start capturing it now (harmless to call again on
-      // every subsequent move of the same drag).
-      if (Math.abs(liveDeltaX) >= DRAG_THRESHOLD_PX) {
+      // every subsequent move of the same drag). Checked as a 2D distance
+      // so a purely vertical drag counts too, not just a horizontal one.
+      if (distanceBetween({ x: liveDeltaX, y: liveDeltaY }, { x: 0, y: 0 }) >= DRAG_THRESHOLD_PX) {
         event.currentTarget.setPointerCapture?.(event.pointerId);
       }
       // Only a CSS transform is touched here - no store update, no React
       // re-render - so panning stays smooth regardless of how many pointer
       // events the browser fires per second (trackpads fire a lot of them).
       if (worldContentRef.current) {
-        worldContentRef.current.style.transform = `translateX(${liveDeltaX}px)`;
+        worldContentRef.current.style.transform = `translate(${liveDeltaX}px, ${liveDeltaY}px)`;
       }
       return;
     }
@@ -223,7 +255,9 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
       if (pinchStartDistance.current > 0) {
         const zoomFactor = distance / pinchStartDistance.current;
         const midpointX = (a.x + b.x) / 2;
+        const midpointY = (a.y + b.y) / 2;
         useCameraStore.getState().zoomAt(midpointX, zoomFactor);
+        useCameraStore.getState().zoomAtY(midpointY, axisTopPx, zoomFactor, minZoomY);
       }
       pinchStartDistance.current = distance;
     }
@@ -232,7 +266,7 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
     event.currentTarget.releasePointerCapture?.(event.pointerId);
     activePointers.current.delete(event.pointerId);
-    endPanIfActive(event.clientX);
+    endPanIfActive(event.clientX, event.clientY);
     // A three-finger gesture dropping to two pointers does not resume
     // pinching until both fingers lift and press again - three-finger
     // recovery is outside Stage 0's scope, and this stays a safe no-op.
@@ -240,7 +274,7 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
 
     if (activePointers.current.size === 1) {
       const [remaining] = [...activePointers.current.values()];
-      panGestureStartX.current = remaining ? remaining.x : null;
+      panGestureStart.current = remaining ? { x: remaining.x, y: remaining.y } : null;
     }
   };
 
@@ -258,42 +292,88 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   );
   const fulcrumScreenX = worldToScreen(0, camera, viewportWidth);
 
+  // Voter-count ticks are powers of ten (product spec: "each step up means
+  // ten times as many voters") rather than computeNiceTicks' linear "nice
+  // numbers" - one tick per decade currently in view, plus the same
+  // pan-buffer margin the X ticks use.
+  const visibleMinWorldY = screenToWorldY(viewportHeight, cameraY, axisTopPx);
+  const visibleMaxWorldY = screenToWorldY(0, cameraY, axisTopPx);
+  const bufferWorldHeight = (visibleMaxWorldY - visibleMinWorldY) * PAN_BUFFER_FACTOR;
+  const yTickMinDecade = Math.max(0, Math.floor(visibleMinWorldY - bufferWorldHeight));
+  const yTickMaxDecade = Math.max(yTickMinDecade, Math.ceil(visibleMaxWorldY + bufferWorldHeight));
+  const yTicks: number[] = [];
+  for (let decade = yTickMinDecade; decade <= yTickMaxDecade; decade++) {
+    yTicks.push(decade);
+  }
+
   const visibleItems = filterByVisibleRange(
     items,
     visibleMinWorld - bufferWorldWidth,
     visibleMaxWorld + bufferWorldWidth,
   );
 
-  const axisTopPx = (AXIS_TOP_PERCENT / 100) * viewportHeight;
-  // 90% of the headroom above the line, leaving a small margin so the
-  // single most-voted item never touches the very top edge of the screen.
-  const maxDotHeightAboveAxis = axisTopPx * 0.9;
-  const maxVoterCount = Math.max(MIN_VOTER_DOMAIN_MAX, ...items.map((item) => item.voterCount));
   // Only moves once the real camera zoom has drifted meaningfully away from
   // this - see nextGridZoom's doc comment for why that stops zoom noise from
-  // flipping a crowded cell's membership back and forth.
+  // flipping a crowded cell's membership back and forth. One per axis, now
+  // that Y has its own independent zoom.
   gridZoomRef.current = nextGridZoom(gridZoomRef.current, camera.zoom);
   const gridZoom = gridZoomRef.current;
+  gridZoomYRef.current = nextGridZoom(gridZoomYRef.current, cameraY.zoomY);
+  const gridZoomY = gridZoomYRef.current;
 
   const gridItems: GridItem[] = visibleItems.map((item) => {
-    const screenY =
-      axisTopPx - logScale(item.voterCount, 1, maxVoterCount, 0, maxDotHeightAboveAxis);
+    // logScale's old domainMin of 1 meant 0 and 1 voter mapped to the same
+    // screen position - the axis line itself. Kept here for the same reason
+    // it was kept before: Stage 0's mock data doesn't enforce "a score means
+    // at least one vote" either (see mockItems.ts), and real votes make a
+    // 0-voter item with a nonzero score impossible by construction.
+    const worldY = Math.log10(Math.max(item.voterCount, 1));
     return {
       item,
       screenX: worldToScreen(item.score, camera, viewportWidth),
-      screenY,
-      // X is anchored in world space (zoom-derived cell width, no pan term
-      // at all) so panning cannot reshuffle a cell's contents. Y has no pan
-      // of its own in Stage 0, but still sharpens with zoom - see
-      // screenPositionToCellIndex's doc comment for why that matters even
-      // for an axis with no camera: it's the only way two items tied on the
-      // exact same score can ever resolve into separate dots.
+      screenY: worldToScreenY(worldY, cameraY, axisTopPx),
+      // Both axes are now anchored in world space (zoom-derived cell size,
+      // no pan term at all), so panning either one cannot reshuffle a
+      // cell's contents - the same property batch 3 established for X.
       cellCol: worldPositionToCellIndex(item.score, gridZoom, GRID_CELL_SIZE_PX),
-      cellRow: screenPositionToCellIndex(screenY, gridZoom, GRID_CELL_SIZE_PX),
+      cellRow: worldPositionToCellIndex(worldY, gridZoomY, GRID_CELL_SIZE_PX),
     };
   });
   const cells = sampleGrid(gridItems, compareGridItems);
   const hoveredCell = cells.find((cell) => cell.representative.item.id === hoveredItemId);
+
+  const cellRenderData = cells.map(({ representative, count }) => ({
+    representative,
+    count,
+    sizePx: logScale(count, 1, MAX_CELL_DENSITY_FOR_STYLING, DOT_MIN_SIZE_PX, DOT_MAX_SIZE_PX),
+    opacity: logScale(count, 1, MAX_CELL_DENSITY_FOR_STYLING, DOT_MIN_OPACITY, 1),
+  }));
+
+  // Every dot on screen can block a label, whether or not it has one of its
+  // own - a crowded cell's larger dot is just as much an obstacle as
+  // another lone item's. See labelDeclutter.ts.
+  const allDotCandidates: LabelCandidate[] = cellRenderData.map(({ representative, sizePx }) => ({
+    id: representative.item.id,
+    screenX: representative.screenX,
+    screenY: representative.screenY,
+    dotSizePx: sizePx,
+    priority: 0,
+    labelWidthPx: 0,
+    labelHeightPx: 0,
+  }));
+  const labelCandidates: LabelCandidate[] = cellRenderData
+    .filter(({ count }) => count === 1)
+    .map(({ representative, sizePx }) => ({
+      id: representative.item.id,
+      screenX: representative.screenX,
+      screenY: representative.screenY,
+      dotSizePx: sizePx,
+      // A more-established item keeps its label when two would collide.
+      priority: representative.item.voterCount,
+      labelWidthPx: representative.item.title.length * LABEL_CHAR_WIDTH_PX + LABEL_TEXT_PADDING_PX,
+      labelHeightPx: LABEL_HEIGHT_PX,
+    }));
+  const shownLabelIds = declutterLabels(allDotCandidates, labelCandidates);
 
   const handleDotSelect = (item: Item) => {
     useCameraStore.getState().animateTo(computeFocusCamera(item, items, viewportWidth));
@@ -312,6 +392,32 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
       onDragStart={(event) => event.preventDefault()}
     >
       <div ref={worldContentRef} data-testid="world-content" className="absolute inset-0">
+        {ticks.map((value) => (
+          <div
+            key={`grid-x-${value}`}
+            data-testid="world-grid-line-x"
+            className="absolute w-px bg-neutral-200"
+            style={{
+              left: worldToScreen(value, camera, viewportWidth),
+              top: -viewportHeight * PAN_BUFFER_FACTOR,
+              height: viewportHeight * (1 + 2 * PAN_BUFFER_FACTOR),
+            }}
+          />
+        ))}
+
+        {yTicks.map((decade) => (
+          <div
+            key={`grid-y-${decade}`}
+            data-testid="world-grid-line-y"
+            className="absolute h-px bg-neutral-200"
+            style={{
+              top: worldToScreenY(decade, cameraY, axisTopPx),
+              left: -viewportWidth * PAN_BUFFER_FACTOR,
+              width: viewportWidth * (1 + 2 * PAN_BUFFER_FACTOR),
+            }}
+          />
+        ))}
+
         <div
           data-testid="world-axis"
           className="absolute h-0.5 bg-black"
@@ -322,7 +428,7 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
             // and leave a visible gap - this has no such edge to reveal.
             left: -viewportWidth * PAN_BUFFER_FACTOR,
             width: viewportWidth * (1 + 2 * PAN_BUFFER_FACTOR),
-            top: `${AXIS_TOP_PERCENT}%`,
+            top: axisTopPx,
           }}
         />
 
@@ -331,7 +437,7 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
           className="absolute h-0 w-0 border-x-[6px] border-b-[9px] border-x-transparent border-b-black"
           style={{
             left: fulcrumScreenX,
-            top: `${AXIS_TOP_PERCENT}%`,
+            top: axisTopPx,
             transform: "translate(-50%, 3px)",
           }}
         />
@@ -343,7 +449,7 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
             className="absolute flex -translate-x-1/2 flex-col items-center pt-4"
             style={{
               left: worldToScreen(value, camera, viewportWidth),
-              top: `${AXIS_TOP_PERCENT}%`,
+              top: axisTopPx,
             }}
           >
             <div className="h-2 w-px bg-neutral-400" />
@@ -351,28 +457,29 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
           </div>
         ))}
 
-        {cells.map(({ representative, count }) => (
+        {yTicks.map((decade) => (
+          <div
+            key={`tick-y-${decade}`}
+            data-testid="world-tick-y"
+            className="absolute flex -translate-y-1/2 items-center gap-1"
+            style={{ top: worldToScreenY(decade, cameraY, axisTopPx), left: 4 }}
+          >
+            <div className="h-px w-2 bg-neutral-400" />
+            <span className="font-semibold text-[10px] text-neutral-700">
+              {formatVoterTickLabel(decade)}
+            </span>
+          </div>
+        ))}
+
+        {cellRenderData.map(({ representative, count, sizePx, opacity }) => (
           <ItemDot
             key={`${representative.cellCol}:${representative.cellRow}`}
             screenX={representative.screenX}
-            // logScale's domainMin is 1, so both 0 and 1 voter map to the
-            // same screen position - the axis line itself. That reads a
-            // little oddly for an item that HAS a score, since any score
-            // at all means at least one vote happened (R5). Left as-is:
-            // Stage 0's mock data doesn't enforce that relationship either
-            // (see the comment in mockItems.ts), and real votes make a
-            // 0-voter item with a nonzero score impossible by construction.
             screenY={representative.screenY}
             title={representative.item.title}
-            count={count}
-            sizePx={logScale(
-              count,
-              1,
-              MAX_CELL_DENSITY_FOR_STYLING,
-              DOT_MIN_SIZE_PX,
-              DOT_MAX_SIZE_PX,
-            )}
-            opacity={logScale(count, 1, MAX_CELL_DENSITY_FOR_STYLING, DOT_MIN_OPACITY, 1)}
+            showLabel={count === 1 && shownLabelIds.has(representative.item.id)}
+            sizePx={sizePx}
+            opacity={opacity}
             // hasVoted is always false for now - there is no voting yet
             // (batch 7). The rule itself (R10/R11) is already correct: it
             // just has nothing but "not voted" to apply it to so far.

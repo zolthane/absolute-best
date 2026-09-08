@@ -93,28 +93,3 @@ export function worldPositionToCellIndex(
   }
   return Math.floor((worldPosition * zoom) / cellSizePixels);
 }
-
-/**
- * The screen-space equivalent for an axis with no pan of its own (the Y axis
- * in Stage 0: voter count maps straight to a screen position that never
- * shifts under panning). `zoom` still narrows the bands as it grows, purely
- * so that two items tied on X (identical score, which horizontal zoom can
- * never separate - multiplying equal numbers by the same zoom keeps them
- * equal) can still resolve into two dots once their vote counts differ
- * enough. Pass 1 for an axis that should never get more precise.
- */
-export function screenPositionToCellIndex(
-  screenPosition: number,
-  zoom: number,
-  cellSizePixels: number,
-): number {
-  if (
-    !Number.isFinite(screenPosition) ||
-    !Number.isFinite(zoom) ||
-    zoom <= 0 ||
-    cellSizePixels <= 0
-  ) {
-    return 0;
-  }
-  return Math.floor((screenPosition * zoom) / cellSizePixels);
-}

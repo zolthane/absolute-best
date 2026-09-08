@@ -4,7 +4,6 @@ import {
   type GridCellAssignment,
   nextGridZoom,
   sampleGrid,
-  screenPositionToCellIndex,
   worldPositionToCellIndex,
 } from "../grid";
 
@@ -177,41 +176,6 @@ describe("nextGridZoom", () => {
     for (const previous of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
       expect(Number.isFinite(nextGridZoom(previous, 4))).toBe(true);
     }
-  });
-});
-
-describe("screenPositionToCellIndex", () => {
-  it("buckets equal-sized screen ranges into the same cell", () => {
-    expect(screenPositionToCellIndex(0, 1, 40)).toBe(screenPositionToCellIndex(39, 1, 40));
-    expect(screenPositionToCellIndex(0, 1, 40)).not.toBe(screenPositionToCellIndex(40, 1, 40));
-  });
-
-  it("returns a safe fallback for non-finite or invalid input", () => {
-    expect(Number.isFinite(screenPositionToCellIndex(Number.NaN, 1, 40))).toBe(true);
-    expect(Number.isFinite(screenPositionToCellIndex(10, 1, 0))).toBe(true);
-    for (const zoom of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
-      expect(Number.isFinite(screenPositionToCellIndex(10, zoom, 40))).toBe(true);
-    }
-  });
-
-  it("splits two screen positions that zoomed-out shared a cell, once zoomed in enough", () => {
-    // The bug this exists to fix: two items tied on the exact same score
-    // (so X can never separate them - see worldPositionToCellIndex) but
-    // with slightly different vote counts, so a close-but-not-identical
-    // screen position. Without this, they'd stay merged forever, no matter
-    // how far the user zoomed in.
-    const near = 100;
-    const nearby = 108;
-    expect(screenPositionToCellIndex(near, 1, 40)).toBe(screenPositionToCellIndex(nearby, 1, 40));
-    expect(screenPositionToCellIndex(near, 10, 40)).not.toBe(
-      screenPositionToCellIndex(nearby, 10, 40),
-    );
-  });
-
-  it("never separates two items at the exact same screen position, at any zoom", () => {
-    // Genuinely identical items (same score, same vote count) are correctly
-    // indistinguishable - there is nothing left to zoom into.
-    expect(screenPositionToCellIndex(100, 500, 40)).toBe(screenPositionToCellIndex(100, 500, 40));
   });
 });
 

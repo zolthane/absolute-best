@@ -10,7 +10,12 @@ import { WorldViewport } from "../WorldViewport";
 // wires pointer events through to the camera store correctly.
 
 beforeEach(() => {
-  useCameraStore.setState({ camera: { center: 0, zoom: 4 }, viewportWidth: 1000 });
+  useCameraStore.setState({
+    camera: { center: 0, zoom: 4 },
+    cameraY: { centerY: 0, zoomY: 100 },
+    viewportWidth: 1000,
+    viewportHeight: 800,
+  });
   useAuthStore.setState({ username: null });
 });
 
@@ -63,7 +68,7 @@ describe("WorldViewport", () => {
     fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 460 });
 
     expect(screen.getByTestId("world-content")).toHaveStyle({
-      transform: "translateX(-40px)",
+      transform: "translate(-40px, 0px)",
     });
   });
 
@@ -143,18 +148,17 @@ describe("WorldViewport", () => {
       expect(screen.getByTestId("item-dot")).toHaveStyle({ left: "580px" });
     });
 
-    it("positions the single most-voted item at the top of its headroom", () => {
+    it("positions a dot at the screen location of its (log) voter count", () => {
       const items: Item[] = [
         { id: "1", title: "Solo", score: 0, voterCount: 100, order: 0, tags: [] },
       ];
       render(<WorldViewport items={items} />);
 
-      const axisTopPx = 0.8 * window.innerHeight;
-      const maxDotHeightAboveAxis = axisTopPx * 0.9;
-      const expectedScreenY = axisTopPx - maxDotHeightAboveAxis;
-
+      // cameraY is { centerY: 0, zoomY: 100 }, viewportHeight 800: axisTopPx
+      // = 0.8*800 = 640. worldY = log10(100) = 2, so
+      // screenY = 640 - (2-0)*100 = 440.
       const actualScreenY = Number.parseFloat(screen.getByTestId("item-dot").style.top);
-      expect(actualScreenY).toBeCloseTo(expectedScreenY, 9);
+      expect(actualScreenY).toBeCloseTo(440, 9);
     });
 
     it("does not crash or misplace an item with zero voters", () => {
@@ -357,6 +361,65 @@ describe("WorldViewport", () => {
 
       expect(window.location.search).toContain("c=12.5");
       expect(window.location.search).toContain("z=8");
+    });
+  });
+
+  describe("vertical camera and label decluttering (batch 6b)", () => {
+    it("pans the vertical camera by exactly the dragged distance on a single-pointer drag", () => {
+      render(<WorldViewport />);
+      const viewport = screen.getByTestId("world-viewport");
+
+      fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 500, clientY: 400 });
+      fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 500, clientY: 440 });
+      fireEvent.pointerUp(viewport, { pointerId: 1, clientX: 500, clientY: 440 });
+
+      // cameraY.zoomY is 100: dragging 40px down must move centerY by 40/100.
+      expect(useCameraStore.getState().cameraY.centerY).toBeCloseTo(0.4, 9);
+    });
+
+    it("zooms the vertical camera in on the wheel, alongside the horizontal one", () => {
+      render(<WorldViewport />);
+      const viewport = screen.getByTestId("world-viewport");
+      const before = useCameraStore.getState().cameraY.zoomY;
+
+      fireEvent.wheel(viewport, { deltaY: -100, clientX: 500, clientY: 400 });
+
+      expect(useCameraStore.getState().cameraY.zoomY).toBeGreaterThan(before);
+    });
+
+    it("never zooms the vertical camera out past the point where the whole data range fits", () => {
+      const items: Item[] = [
+        { id: "a", title: "A", score: 0, voterCount: 1000, order: 0, tags: [] },
+      ];
+      render(<WorldViewport items={items} />);
+      const viewport = screen.getByTestId("world-viewport");
+
+      // A huge positive deltaY asks for a drastic zoom-out.
+      fireEvent.wheel(viewport, { deltaY: 100_000, clientX: 500, clientY: 400 });
+
+      // viewportHeight is 800 (set in beforeEach); minZoomYForItems([1000], 800)
+      // is the floor - there is nothing beyond a 1000-voter item to show.
+      const decades = Math.max(Math.log10(1000), 1);
+      const minZoomY = 800 / (decades * 1.1);
+      expect(useCameraStore.getState().cameraY.zoomY).toBeGreaterThanOrEqual(minZoomY);
+    });
+
+    it("hides the lower-priority label when two lone items' labels would collide", () => {
+      // Chosen so both fall one grid row apart (so neither dot merges with
+      // the other) yet land within a fraction of a pixel of the same screen
+      // position - guaranteeing their labels overlap. See labelDeclutter.ts
+      // for the general rule; this only proves the component wires real
+      // item data into it.
+      const items: Item[] = [
+        { id: "less-voted", title: "Less Voted", score: 0, voterCount: 1584, order: 0, tags: [] },
+        { id: "more-voted", title: "More Voted", score: 0, voterCount: 1585, order: 1, tags: [] },
+      ];
+      render(<WorldViewport items={items} />);
+
+      expect(screen.getAllByTestId("item-dot")).toHaveLength(2);
+      const labels = screen.getAllByTestId("item-label");
+      expect(labels).toHaveLength(1);
+      expect(labels[0]).toHaveTextContent("More Voted");
     });
   });
 });

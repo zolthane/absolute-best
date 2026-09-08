@@ -2,7 +2,11 @@ interface ItemDotProps {
   screenX: number;
   screenY: number;
   title: string;
-  count: number;
+  // Whether a label should be drawn at all: the caller decides this (only a
+  // dot alone in its cell is ever eligible, and even then only if showing
+  // its label wouldn't collide with another one - see labelDeclutter.ts),
+  // not this component.
+  showLabel: boolean;
   sizePx: number;
   opacity: number;
   isVotable: boolean;
@@ -18,7 +22,7 @@ export function ItemDot({
   screenX,
   screenY,
   title,
-  count,
+  showLabel,
   sizePx,
   opacity,
   isVotable,
@@ -42,7 +46,7 @@ export function ItemDot({
         onMouseLeave={onHoverEnd}
         onClick={onSelect}
       />
-      {count === 1 && (
+      {showLabel && (
         <span
           data-testid="item-label"
           // A solid backdrop and a z-index above the plain dots: two lone
