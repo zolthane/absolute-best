@@ -254,6 +254,13 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
           <ItemDot
             key={item.id}
             screenX={worldToScreen(item.score, camera, viewportWidth)}
+            // logScale's domainMin is 1, so both 0 and 1 voter map to the
+            // same screen position - the axis line itself. That reads a
+            // little oddly for an item that HAS a score, since any score
+            // at all means at least one vote happened (R5). Left as-is:
+            // Stage 0's mock data doesn't enforce that relationship either
+            // (see the comment in mockItems.ts), and real votes make a
+            // 0-voter item with a nonzero score impossible by construction.
             screenY={
               axisTopPx - logScale(item.voterCount, 1, maxVoterCount, 0, maxDotHeightAboveAxis)
             }

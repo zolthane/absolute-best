@@ -31,6 +31,12 @@ function generateMockItems(): Item[] {
   const random = mulberry32(MOCK_DATA_SEED);
 
   return Array.from({ length: ITEM_COUNT }, (_, index) => {
+    // score and voterCount are drawn independently, which is not actually
+    // possible in the real product: a score is a sum of votes, so it can
+    // never exceed voterCount * 10, and a nonzero score implies at least
+    // one voter (rule R5 - votes and voters are the same number). Real
+    // votes will enforce this automatically once they exist; this is
+    // Stage 0 mock data standing in for that, not modelling it.
     const score = Math.round((random() * 2 - 1) * SCORE_RANGE);
     // Uniform in the exponent, not in the count itself, so most items land
     // low with a long tail of rarer, more-voted ones - and, conveniently,
