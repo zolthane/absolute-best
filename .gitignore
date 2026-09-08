@@ -9,6 +9,7 @@ node_modules/
 dist/
 dist-ssr/
 build/
+*.tsbuildinfo
 
 # Local environment files - MAY CONTAIN SECRETS, never commit
 .env
