@@ -8,6 +8,7 @@ export {
   worldToScreen,
   zoomCameraAtPoint,
 } from "./camera";
+export { fitCameraToItems } from "./entryView";
 export {
   type GridCell,
   type GridCellAssignment,

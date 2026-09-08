@@ -1,19 +1,20 @@
 import {
   type Camera,
+  fitCameraToItems,
   panCamera,
   screenToWorld,
   worldToScreen,
   zoomCameraAtPoint,
 } from "@teeter/shared";
 import { create } from "zustand";
+import { mockItems } from "../../data/mockItems";
 
-// The Stage 0 default: no real data exists yet, so the camera opens on a
-// fixed range wide enough to feel like a world rather than a single point.
-// The product spec's real "fit to the data" camera arrives in batch 4.
-const DEFAULT_VISIBLE_WORLD_WIDTH = 220;
-
+// The entry view (product spec, batch 4): arriving shows the whole world,
+// fitted to the actual data. Stage 0 has no server to load items from, so
+// the mock set stands in for it - this is the one place the camera store
+// needs to know about real items rather than just the shape of a camera.
 function initialCamera(viewportWidth: number): Camera {
-  return { center: 0, zoom: viewportWidth / DEFAULT_VISIBLE_WORLD_WIDTH };
+  return fitCameraToItems(mockItems, viewportWidth);
 }
 
 interface CameraState {
