@@ -22,7 +22,7 @@
 
 | # | Batch | Hours | What you will be able to do at the end | Done |
 | --- | --- | --- | --- | --- |
-| 0 | Project skeleton | 2–3 | Run `npm test` and `npm run dev` | [ ] |
+| 0 | Project skeleton | 2–3 | Run `npm test` and `npm run dev` | [x] |
 | 1 | The axis and the camera | 4–5 | Drag and zoom around an empty world line | [ ] |
 | 2 | Items on the line | 2–3 | See a cloud of placeholder items | [ ] |
 | 3 | Grid sampling | 3–4 | Zoom out to a stable overview; zoom in for detail | [ ] |
