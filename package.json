@@ -8,6 +8,7 @@
     "packages/*"
   ],
   "scripts": {
+    "sync": "git pull && npm install",
     "dev": "npm run dev --workspace=apps/web",
     "build": "npm run build --workspace=apps/web",
     "test": "npm run test --workspaces --if-present",
