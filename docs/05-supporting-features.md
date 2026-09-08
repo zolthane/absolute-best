@@ -288,3 +288,124 @@ early.)*
 ```
 (write anything you want changed here)
 ```
+
+---
+
+## 10. Achievements and leaderboards
+
+*Added 2026-09-08. Approval above is not reopened; decisions E1–E3 below.*
+
+Two different ideas that behave very differently. **One I would build. One I would not build
+in the form suggested**, for a reason specific to how Teeter works.
+
+### 10.1 ⚠ Why a "most votes cast" leaderboard would damage the product
+
+Ranking users by how many votes they have cast rewards **volume**, and volume is the one
+thing this product must not encourage. Three mechanisms, all concrete:
+
+**It corrupts both axes at once.** Someone racing up a leaderboard clicks through Quick Fire
+without thinking. Those votes scatter roughly at random, which pulls scores toward the
+centre (the X axis) while inflating voter counts (the Y axis). Every item they touch becomes
+noisier *and* falsely more popular.
+
+**It hijacks the map itself.** Grid sampling shows **the most-voted item in each cell**
+(§2, product spec). Inflate vote counts through spam and those items become the ones drawn
+on the map. Volume-chasing would literally decide what everyone sees.
+
+**And none of it can be undone.** Votes are permanent and unchangeable — rule R3. On a site
+where people can revise their votes, a burst of careless voting corrects itself over time.
+Here it is baked in forever, into the very dataset the business plan's Stage 4 intends to
+sell.
+
+There is also a softer objection. The business plan states that **equal voting is central to
+the platform's credibility**. A volume leaderboard does not grant extra voting power, but it
+does grant *status* for voting more — the same idea wearing a different hat.
+
+### 10.2 ✅ What to reward instead
+
+Reward things that **improve** the dataset rather than inflate it. Each of these is harder
+to fake than raw volume, and each is more interesting to the user.
+
+| Instead of… | Reward this | Why it works |
+| --- | --- | --- |
+| Votes cast | **Breadth** — "you have voted in 8 of 12 categories" | Encourages exploring the map, which is the point |
+| Votes cast | **Contribution** — items you added, and how many votes *those* went on to receive | Self-policing: junk entries attract no votes, so they earn nothing |
+| Votes cast | **Tastemaker** — you voted on something when it had 4 voters; it now has 40,000 | Rewards *judgement*, and is impossible to game by volume because it depends on other people agreeing later |
+| Votes cast | **Streaks** — voting on some days, not many times in one day | Rewards coming back, which is what actually matters |
+
+**The tastemaker one is the strongest.** It is retroactive, it cannot be farmed, it makes
+early voting on obscure items feel valuable — which is exactly the behaviour that fixes the
+cold-start problem (Risk 1) — and it produces a naturally shareable brag.
+
+### 10.3 ✅ Achievements — yes, with one rule
+
+Achievements are much safer than leaderboards: private by default, no ranking, no elite, and
+no reason to spam if they are built around **variety and judgement rather than counts**.
+
+Good: *"Voted in every category." "Added an item that reached 1,000 voters." "Backed five
+items before they were popular." "Found something nobody had rated yet."*
+
+Bad: *"Cast 1,000 votes."*
+
+**The rule: no achievement may be earned by doing the same thing repeatedly.** If it can be
+farmed, it will be, and §10.1 explains the damage.
+
+### 10.4 If you still want a leaderboard
+
+Defensible, provided it never ranks raw votes:
+
+- **Rank contribution or tastemaking**, never volume
+- **Time-boxed** — "this week", not all time. An all-time board is unreachable for anyone
+  who joins later, so it demotivates the people you most need
+- **Or show percentiles instead** — "top 15% of contributors this month" lets everyone see
+  themselves, rather than crowning twenty people and ignoring everyone else
+- **Opt-in.** A public leaderboard publishes a username alongside behavioural data. That is
+  personal data on public display, and it needs consent rather than an assumption
+
+> **One privacy trap.** A "most contrarian" ranking would publicly mark people whose votes
+> oppose the consensus. On political or religious subjects that edges toward inferred
+> special-category data under GDPR Article 9 — the same concern already flagged for Opinion
+> DNA in business plan §10. Keep contrarian scores **private to the user**; they make a
+> lovely personal insight and a poor public ranking.
+
+### 10.5 When
+
+**Nothing here is Stage 0** — all of it needs real accounts and real data.
+
+| Stage | What |
+| --- | --- |
+| 2 | Achievements, breadth and contribution stats on the profile |
+| 2 | Tastemaker detection (needs score history, which Stage 2 adds anyway) |
+| 3 | Leaderboards, if wanted — sits naturally beside Opinion DNA |
+
+**A note on scope.** Stage 1 and Stage 2 have grown considerably today: moderation tooling,
+legal pages, share previews, keyboard access, and now engagement mechanics. None of it
+touches Stage 0, and none of it is wrong — but Stage 2 is filling up, and at a few hours a
+week that matters. Worth reviewing what Stage 2 must contain versus what it could, once
+Stage 0 has passed its gate.
+
+---
+
+## 11. Decisions — engagement
+
+**E1 — Achievements built around variety and judgement, never repetition?** *(10.3.
+Recommended: yes, Stage 2.)*
+
+- [ ] Yes — Stage 2
+- [ ] Yes, but later than Stage 2
+- [ ] Not interested
+
+**E2 — Drop the "most votes cast" leaderboard in favour of contribution and tastemaker
+measures?** *(10.1, 10.2. Recommended: yes — a volume leaderboard would corrupt both axes
+and decide what the map displays.)*
+
+- [ ] Agreed — never rank by raw votes cast
+- [ ] I want a votes-cast leaderboard anyway
+- [ ] Other: `________________________`
+
+**E3 — Any public leaderboard at all?** *(10.4.)*
+
+- [ ] Yes, but opt-in, time-boxed, and ranked on contribution or tastemaking *(recommended)*
+- [ ] Percentiles only — no named ranking
+- [ ] No leaderboards; achievements and private stats only
+- [ ] Other: `________________________`

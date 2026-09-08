@@ -507,18 +507,18 @@ Both are pure presentation on non-data screens, so none of the objections above 
 **W1 — Zero drawn as a fulcrum triangle?** *(9.1. Recommended: yes — free, static, and it
 makes the name legible.)*
 
-- [ ] Yes — batch 1
+- [x] Yes — batch 1
 - [ ] No
 
 **W2 — Weighted settle, with overshoot scaled by voter count?** *(9.2. Recommended: yes —
 it teaches the additive model wordlessly. Includes honouring `prefers-reduced-motion`.)*
 
 - [ ] Yes — batches 7 and 10
-- [ ] Yes, but keep it very subtle
+- [x] Yes, but keep it very subtle
 - [ ] No
 
 **W3 — The teetering wordmark and seesaw loader?** *(9.5. Recommended: yes, batch 11.)*
 
-- [ ] Yes
+- [x] Yes
 - [ ] Just the wordmark
 - [ ] Neither
