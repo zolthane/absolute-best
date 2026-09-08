@@ -8,11 +8,22 @@ interface ItemCardProps {
   screenY: number;
 }
 
-// Positioned just above the dot it describes, horizontally centred on it.
+// Positioned just above the dot it describes, horizontally centred on it -
+// unless that would push it off the top of the screen (a high-voter-count
+// item's dot can sit very close to the top), in which case it flips below.
 const CARD_WIDTH_PX = 224;
-const CARD_OFFSET_ABOVE_DOT_PX = 12;
+const CARD_OFFSET_FROM_DOT_PX = 12;
+// A rough estimate of the card's own rendered height (image + header + tag
+// row), not a measurement - good enough to decide which side has room
+// without the complexity of a measure-then-position render pass.
+const CARD_HEIGHT_ESTIMATE_PX = 220;
 
 export function ItemCard({ item, screenX, screenY }: ItemCardProps) {
+  const roomAbove = screenY - CARD_HEIGHT_ESTIMATE_PX - CARD_OFFSET_FROM_DOT_PX >= 0;
+  const transform = roomAbove
+    ? `translate(-50%, calc(-100% - ${CARD_OFFSET_FROM_DOT_PX}px))`
+    : `translate(-50%, ${CARD_OFFSET_FROM_DOT_PX}px)`;
+
   return (
     <Card
       data-testid="item-card"
@@ -21,7 +32,7 @@ export function ItemCard({ item, screenX, screenY }: ItemCardProps) {
         left: screenX,
         top: screenY,
         width: CARD_WIDTH_PX,
-        transform: `translate(-50%, calc(-100% - ${CARD_OFFSET_ABOVE_DOT_PX}px))`,
+        transform,
       }}
     >
       <CardHeader>
