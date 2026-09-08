@@ -43,6 +43,11 @@ const TICK_TARGET_COUNT = 12;
 // into view before the gesture commits and a fresh set is computed.
 const PAN_BUFFER_FACTOR = 2;
 
+// How far a single pointer must move before a gesture counts as a drag
+// rather than a click/tap. Below this, pointer capture is never taken - see
+// handlePointerMove's comment for why that matters for clicking an item.
+const DRAG_THRESHOLD_PX = 4;
+
 // How many voters the single most-voted item on screen would need before
 // its dot reaches the very top of its headroom. Chosen per render from the
 // actual data instead, so this is only the floor for an otherwise-empty map.
@@ -161,10 +166,14 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   };
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    event.currentTarget.setPointerCapture?.(event.pointerId);
     activePointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
 
     if (activePointers.current.size === 1) {
+      // Pointer capture is deliberately NOT taken here - only once real drag
+      // movement is confirmed, in handlePointerMove. Capturing immediately
+      // would retarget the click event a plain tap ends with to this div
+      // instead of whichever item dot was actually clicked, silently
+      // breaking "click an item to focus it" for every click, moved or not.
       panGestureStartX.current = event.clientX;
       pinchStartDistance.current = null;
     } else if (activePointers.current.size === 2) {
@@ -172,6 +181,9 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
       if (a && b) {
         endPanIfActive(a.x);
         pinchStartDistance.current = distanceBetween(a, b);
+        // A pinch always involves both pointers moving, so there is no
+        // click to protect here - capturing immediately is safe.
+        event.currentTarget.setPointerCapture?.(event.pointerId);
       }
     }
   };
@@ -183,10 +195,16 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
     activePointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
 
     if (activePointers.current.size === 1 && panGestureStartX.current !== null) {
+      const liveDeltaX = event.clientX - panGestureStartX.current;
+      // Once the pointer has genuinely moved, this is a drag rather than a
+      // tap - safe to start capturing it now (harmless to call again on
+      // every subsequent move of the same drag).
+      if (Math.abs(liveDeltaX) >= DRAG_THRESHOLD_PX) {
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+      }
       // Only a CSS transform is touched here - no store update, no React
       // re-render - so panning stays smooth regardless of how many pointer
       // events the browser fires per second (trackpads fire a lot of them).
-      const liveDeltaX = event.clientX - panGestureStartX.current;
       if (worldContentRef.current) {
         worldContentRef.current.style.transform = `translateX(${liveDeltaX}px)`;
       }

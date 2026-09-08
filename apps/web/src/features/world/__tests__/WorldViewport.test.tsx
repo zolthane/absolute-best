@@ -99,6 +99,37 @@ describe("WorldViewport", () => {
     expect(useCameraStore.getState().camera.zoom).toBeGreaterThan(4);
   });
 
+  it("does not take pointer capture for a stationary or barely-moved single pointer", () => {
+    // Regression test: capturing the pointer immediately on pointerdown
+    // retargets the click event a plain tap ends with to this div instead
+    // of whichever item dot was under the pointer, silently breaking
+    // "click an item to focus it" for every click. jsdom does not simulate
+    // that retargeting itself (so a test asserting the click's target
+    // wouldn't have caught the original bug) - this instead asserts the
+    // fix's actual mechanism: capture must not be requested until the
+    // pointer has genuinely moved like a drag.
+    const setPointerCapture = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "setPointerCapture", {
+      value: setPointerCapture,
+      configurable: true,
+    });
+
+    render(<WorldViewport />);
+    const viewport = screen.getByTestId("world-viewport");
+
+    fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 500 });
+    expect(setPointerCapture).not.toHaveBeenCalled();
+
+    fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 501 }); // 1px: still a tap
+    expect(setPointerCapture).not.toHaveBeenCalled();
+
+    fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 520 }); // past the threshold
+    expect(setPointerCapture).toHaveBeenCalledWith(1);
+
+    // Restores the environment's own absence of this API for later tests.
+    delete (HTMLElement.prototype as { setPointerCapture?: unknown }).setPointerCapture;
+  });
+
   describe("items", () => {
     it("positions a dot at the screen location of its score", () => {
       const items: Item[] = [
