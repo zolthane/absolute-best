@@ -24,7 +24,7 @@
 | --- | --- | --- | --- | --- |
 | 0 | Project skeleton | 2–3 | Run `npm test` and `npm run dev` | [x] |
 | 1 | The axis and the camera | 4–5 | Drag and zoom around an empty world line | [x] |
-| 2 | Items on the line | 2–3 | See a cloud of placeholder items | [ ] |
+| 2 | Items on the line | 2–3 | See a cloud of placeholder items | [x] |
 | 3 | Grid sampling | 3–4 | Zoom out to a stable overview; zoom in for detail | [ ] |
 | 4 | Entry view | 1–2 | Arrive and see the whole world, fitted | [ ] |
 | 5 | Item cards and focusing | 3–4 | Click an item; the camera glides to it and shows a card | [ ] |
