@@ -14,6 +14,8 @@ import {
 } from "@teeter/shared";
 import { useEffect, useRef, useState } from "react";
 import { type Item, mockItems } from "../../data/mockItems";
+import { useAuthStore } from "../auth/authStore";
+import { isItemVotable } from "../auth/voteState";
 import { useCameraStore } from "./cameraStore";
 import { ItemCard } from "./ItemCard";
 import { ItemDot } from "./ItemDot";
@@ -89,6 +91,7 @@ interface WorldViewportProps {
 export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   const camera = useCameraStore((state) => state.camera);
   const viewportWidth = useCameraStore((state) => state.viewportWidth);
+  const isLoggedIn = useAuthStore((state) => state.username !== null);
   const [viewportHeight, setViewportHeight] = useState(() => window.innerHeight);
   // Just the id, not the whole GridItem: that object's screenX/screenY would
   // go stale if the camera moves while hovering (e.g. zooming with the wheel
@@ -370,6 +373,10 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
               DOT_MAX_SIZE_PX,
             )}
             opacity={logScale(count, 1, MAX_CELL_DENSITY_FOR_STYLING, DOT_MIN_OPACITY, 1)}
+            // hasVoted is always false for now - there is no voting yet
+            // (batch 7). The rule itself (R10/R11) is already correct: it
+            // just has nothing but "not voted" to apply it to so far.
+            isVotable={isItemVotable(isLoggedIn, false)}
             onHoverStart={() => setHoveredItemId(representative.item.id)}
             onHoverEnd={() =>
               setHoveredItemId((current) => (current === representative.item.id ? null : current))

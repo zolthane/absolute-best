@@ -1,3 +1,4 @@
+import { TopBar } from "./features/auth/TopBar";
 import { WorldViewport } from "./features/world/WorldViewport";
 
 export default function App() {
@@ -7,8 +8,9 @@ export default function App() {
     // end up hidden behind the address bar or gesture area - most visibly
     // right after rotating, before the browser recalculates. 100dvh tracks
     // the actually-visible area at all times.
-    <main className="h-dvh w-screen overflow-hidden bg-white">
+    <main className="relative h-dvh w-screen overflow-hidden bg-white">
       <WorldViewport />
+      <TopBar />
     </main>
   );
 }

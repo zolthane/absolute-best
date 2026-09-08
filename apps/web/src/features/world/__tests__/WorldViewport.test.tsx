@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Item } from "../../../data/mockItems";
+import { useAuthStore } from "../../auth/authStore";
 import { useCameraStore } from "../cameraStore";
 import { WorldViewport } from "../WorldViewport";
 
@@ -10,6 +11,7 @@ import { WorldViewport } from "../WorldViewport";
 
 beforeEach(() => {
   useCameraStore.setState({ camera: { center: 0, zoom: 4 }, viewportWidth: 1000 });
+  useAuthStore.setState({ username: null });
 });
 
 describe("WorldViewport", () => {
@@ -174,6 +176,23 @@ describe("WorldViewport", () => {
       render(<WorldViewport items={items} />);
 
       expect(screen.getAllByTestId("item-dot")).toHaveLength(1);
+    });
+  });
+
+  describe("vote-state colour (batch 6)", () => {
+    const items: Item[] = [
+      { id: "a", title: "Alpha", score: 0, voterCount: 10, order: 0, tags: [] },
+    ];
+
+    it("is locked (not blue) for a logged-out visitor - rule R11", () => {
+      render(<WorldViewport items={items} />);
+      expect(screen.getByTestId("item-dot")).not.toHaveClass("bg-blue-600");
+    });
+
+    it("is votable (blue) for a logged-in user - rule R10", () => {
+      useAuthStore.setState({ username: "Alice" });
+      render(<WorldViewport items={items} />);
+      expect(screen.getByTestId("item-dot")).toHaveClass("bg-blue-600");
     });
   });
 

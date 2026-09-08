@@ -5,6 +5,7 @@ interface ItemDotProps {
   count: number;
   sizePx: number;
   opacity: number;
+  isVotable: boolean;
   onHoverStart: () => void;
   onHoverEnd: () => void;
   onSelect: () => void;
@@ -20,6 +21,7 @@ export function ItemDot({
   count,
   sizePx,
   opacity,
+  isVotable,
   onHoverStart,
   onHoverEnd,
   onSelect,
@@ -30,7 +32,11 @@ export function ItemDot({
       {/* biome-ignore lint/a11y/useKeyWithClickEvents: same as above - S6 covers this dot too. */}
       <div
         data-testid="item-dot"
-        className="-translate-x-1/2 -translate-y-1/2 absolute cursor-pointer rounded-full bg-black"
+        // Rules R10/R11: blue = votable, grey = locked (logged out, or
+        // already voted once batch 7 exists).
+        className={`-translate-x-1/2 -translate-y-1/2 absolute cursor-pointer rounded-full ${
+          isVotable ? "bg-blue-600" : "bg-neutral-500"
+        }`}
         style={{ left: screenX, top: screenY, width: sizePx, height: sizePx, opacity }}
         onMouseEnter={onHoverStart}
         onMouseLeave={onHoverEnd}
