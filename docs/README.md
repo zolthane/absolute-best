@@ -1,4 +1,4 @@
-# Absolute Best — Project Documents
+# Teeter — Project Documents
 
 This folder holds every plan for the project. They are ordinary text files written in
 Markdown, which means you can open and edit any of them in Notepad, Visual Studio Code, or

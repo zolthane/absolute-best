@@ -1,4 +1,4 @@
-# Absolute Best — Business Plan
+# Teeter — Business Plan
 
 | | |
 | --- | --- |
@@ -19,7 +19,7 @@
 
 ## 1. The business in one paragraph
 
-Absolute Best is a website where the public collectively decides where things belong on a
+Teeter is a website where the public collectively decides where things belong on a
 single, endless line running from strongly negative to strongly positive. Anyone may look;
 registered users may vote. Each user gets exactly one vote per item, worth anywhere from
 −10 to +10, and every vote is **added** to the item's total rather than averaged into it.
@@ -39,7 +39,7 @@ Every review site you have ever used calculates an **average**. Ten people rate 
 8/10 and the film scores 8/10 — exactly the same as if ten thousand people had rated it
 8/10. Averaging throws away the single most interesting fact: *how many people cared*.
 
-Absolute Best does not average. It **adds**.
+Teeter does not average. It **adds**.
 
 **Worked example** (placeholder items, not real titles):
 
@@ -72,7 +72,7 @@ Three consequences fall out of this design, and they are the whole product:
 
 ## 3. Why this is different, and why the difference matters
 
-| | Traditional review sites | Absolute Best |
+| | Traditional review sites | Teeter |
 | --- | --- | --- |
 | Score | Average, capped (e.g. 1–5 stars) | Sum, uncapped (−∞ to +∞) |
 | Effect of one more vote | Dilutes toward the mean | Moves the item |
@@ -289,7 +289,7 @@ before Stage 1 becomes publicly available.
 
 ### Digital Services Act
 
-Absolute Best hosts user-generated content and therefore falls within the DSA. Before
+Teeter hosts user-generated content and therefore falls within the DSA. Before
 public launch it needs clear terms of service, a working notice-and-action mechanism (the
 report button from Risk 3), a stated complaints route, and a designated point of contact.
 These obligations are light at small scale, but they are not optional.
@@ -337,10 +337,27 @@ product specification cannot be written until they are settled.
 
 **D1 — Which name are we going with?**
 
-- [x] Absolute Best — *"Not rated. Positioned."*
-- [ ] Opinion Atlas — *"Where opinions become coordinates."*
-- [ ] Other: `________________________`
-- [ ] Decide later; use "Absolute Best" as the working title
+**Answered "Absolute Best" on 2026-09-07. Changed to "Teeter" on 2026-09-08** — you wanted a
+shorter name that suggests the *act* of tipping something one way or the other, and shows
+the playful side of the product rather than stating a mission.
+
+- [x] **Teeter** — a teeter-totter is precisely the mechanic: a thing balanced on a point,
+      tipping left or right depending on who leans on it. Short, playful, works in both
+      directions, and reads as a game rather than a database.
+- [ ] ~~Absolute Best~~ — *"Not rated. Positioned."* — superseded
+- [ ] ~~Sway~~ — shortlisted, then rejected. See the check below
+- [ ] ~~Opinion Atlas~~ — *"Where opinions become coordinates."*
+
+**Checked before deciding.** No software product is called Teeter — the notable commercial
+uses are Harris Teeter (a US supermarket chain, different name and sector) and the surname.
+*Sway*, the other shortlisted name, collides with **Microsoft Sway**, an active Microsoft
+365 web application in the same category; that would have meant never ranking for our own
+name, and a trademark clash in the same class.
+
+**Tagline: still open.** See Section 14.4.
+
+**Note:** the repository, folder and package are still named `absolute-best`. Only the
+product name changed.
 
 **D2 — Is Stage 0 (prototype only, no server, fake data) the correct next step?**
 
@@ -461,3 +478,46 @@ argued again:
 **Recommendation, unchanged: take legal advice before Stage 1 goes public**, and consider
 excluding living people while still allowing historical ones — a distinction Wikipedia
 records, so it is equally automatic to enforce.
+
+### 14.4 Name, tagline and domain — 2026-09-08
+
+**The name is Teeter.** See D1 for the reasoning and the checks.
+
+#### The tagline is now wrong for the name
+
+D1's original tagline, *"Not rated. Positioned."*, was written for "Absolute Best". It is a
+statement of philosophy — which is exactly what you said you wanted to move away from. It
+should change with the name.
+
+Suggestions, in the same playful register as Teeter itself:
+
+| Tagline | Why |
+| --- | --- |
+| **Tip the scales.** | Plays directly on the name, and it is an instruction — it tells you what to do |
+| **Everything, off balance.** | Captures the absurd juxtaposition: a labrador beside the Eiffel Tower |
+| **Where does it belong?** | A question invites an answer, which is the action we want |
+| **Give it a shove.** | The bluntest and most game-like |
+| **Nothing is neutral.** | Slightly more serious, still not a mission statement |
+
+**Recommendation: "Tip the scales."** It plays on the name, describes the mechanic, and is
+a call to action rather than a description of the product.
+
+**Undecided.** The documentation carries no tagline until you pick one.
+
+#### Domain availability, checked 2026-09-08
+
+| Domain | Status |
+| --- | --- |
+| `teeter.com` | **Taken** — registered since 1995, transfer-locked, behind Cloudflare. Held deliberately; would be expensive if available at all |
+| `getteeter.com` | **Taken** — registered 2012 |
+| `teeterapp.com` | ✅ **Available** |
+| `playteeter.com` | ✅ **Available** |
+| `teeterit.com` | ✅ **Available** |
+| `teeter.app` | **Unknown** — the registry's lookup service did not respond; check with a registrar |
+
+**Recommendation: `teeter.app`** if it is free — the `.app` suffix suits a product like this
+and every `.app` domain is HTTPS-only by default, which is a small security win. Otherwise
+**`playteeter.com`**, which reinforces the game framing.
+
+This also unblocks decision **S3** in [supporting features](05-supporting-features.md): once
+a domain exists, the feedback address becomes `hello@` that domain.

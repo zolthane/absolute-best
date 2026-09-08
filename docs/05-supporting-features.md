@@ -238,42 +238,42 @@ Considered and rejected, so they do not resurface as forgotten ideas:
 yes. About +1 hour now against several hours and a rewrite later — and without it, phone
 users tell you nothing during the Stage 0 test.)*
 
-- [ ] Yes — amend batches 1 and 7 of the build checklist
+- [x] Yes — amend batches 1 and 7 of the build checklist
 - [ ] No — desktop only for Stage 0, accept the retrofit
 - [ ] Other: `________________________`
 
 **S2 — Add a feedback `mailto:` and a "?" help button to batch 11?** *(Sections 2.2, 2.3.
 About 30 minutes together.)*
 
-- [ ] Yes to both *(recommended)*
+- [x] Yes to both *(recommended)*
 - [ ] Feedback link only
 - [ ] Neither
 
 **S3 — Which email address for feedback?** *(Section 1. Not your personal one.)*
 
 - [ ] A new free address created for the project, e.g. `absolutebest.feedback@…`
-- [ ] Wait until there is a domain, then `hello@…` *(recommended — but then Stage 0 has no feedback link)*
+- [x] Wait until there is a domain, then `hello@…` *(recommended — but then Stage 0 has no feedback link)*
 - [ ] Other: `________________________`
 
 **S4 — Accept the Stage 1 additions in Sections 3, 4 and 5 as planned work?** They will be
 detailed in the Stage 1 checklist, not now. *(Recommended: yes. Note this adds roughly two
 batches to Stage 1 — mostly moderation tools and the legal pages.)*
 
-- [ ] Yes — record them as Stage 1 scope
+- [x] Yes — record them as Stage 1 scope
 - [ ] Yes, but drop: `________________________`
 - [ ] Discuss first
 
 **S5 — Keep user-facing text in one file from the start?** *(Section 6.2. Recommended: yes,
 with no library.)*
 
-- [ ] Yes
+- [x] Yes
 - [ ] No — hard-code it, deal with Hungarian later
 
 **S6 — Plan keyboard access into Stage 1?** *(Section 6.1. Recommended: yes — it is a
 requirement if the product is ever offered to public-sector customers, and much cheaper
 early.)*
 
-- [ ] Yes — Stage 1
+- [x] Yes — Stage 1
 - [ ] Later
 - [ ] Not a priority
 
@@ -281,8 +281,8 @@ early.)*
 
 ## 9. Approval
 
-- **Approved by:** `________________________`
-- **Date:** `________________________`
+- **Approved by:** `_LZ__`
+- **Date:** `_2026.09.08.__`
 - **Approved with the following changes:**
 
 ```

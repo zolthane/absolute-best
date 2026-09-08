@@ -77,7 +77,7 @@ That was half right, and I am narrowing it:
 2. Run `npm install`. It should finish without red errors.
 3. Run `npm test`. You should see one passing test.
 4. Run `npm run dev`. It prints a web address, usually `http://localhost:5173`.
-5. Open that address. You should see a plain page saying "Absolute Best".
+5. Open that address. You should see a plain page saying "Teeter".
 6. Change the text in `apps/web/src/App.tsx`, save, and watch the browser update by itself
    within a second.
 7. Push to GitHub. On github.com, the **Actions** tab should show a green tick.
@@ -393,7 +393,8 @@ at score 0 with 0 voters.
 
 Deliberately late: it is presentation, and the risky parts came first.
 
-- [ ] Centred "Absolute Best" logo with the tagline *"Not rated. Positioned."* (D1)
+- [ ] Centred "Teeter" logo with the chosen tagline (business plan §14.4 — **not yet
+      decided**; leave the tagline out until it is)
 - [ ] Taglines from the business plan cross-fading below
 - [ ] Start button
 - [ ] Animated transition: the logo shrinks away as the axis draws itself in

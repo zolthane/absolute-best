@@ -1,4 +1,4 @@
-# Absolute Best
+# Teeter
 
 A community-driven platform for positioning anything on one shared, infinite opinion axis.
 
