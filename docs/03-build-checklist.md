@@ -25,7 +25,7 @@
 | 0 | Project skeleton | 2–3 | Run `npm test` and `npm run dev` | [x] |
 | 1 | The axis and the camera | 4–5 | Drag and zoom around an empty world line | [x] |
 | 2 | Items on the line | 2–3 | See a cloud of placeholder items | [x] |
-| 3 | Grid sampling | 3–4 | Zoom out to a stable overview; zoom in for detail | [ ] |
+| 3 | Grid sampling | 3–4 | Zoom out to a stable overview; zoom in for detail | [x] |
 | 4 | Entry view | 1–2 | Arrive and see the whole world, fitted | [ ] |
 | 5 | Item cards and focusing | 3–4 | Click an item; the camera glides to it and shows a card | [ ] |
 | 6 | Mock login | 2–3 | Log in; items turn blue; refresh keeps you logged in | [ ] |
@@ -168,12 +168,12 @@ most bug-prone batch**, so it gets the most tests.
 
 **Build**
 
-- [ ] Pure function: given the viewport and the items, return one representative per
+- [x] Pure function: given the viewport and the items, return one representative per
       ~40×40 pixel cell
-- [ ] Representative = most-voted in the cell, ties broken by oldest
-- [ ] Dot size and darkness reflect how many items the cell stands for
-- [ ] Names shown only when a dot is alone in its cell
-- [ ] Temporarily raise the mock data to ~5,000 items to prove it holds up
+- [x] Representative = most-voted in the cell, ties broken by oldest
+- [x] Dot size and darkness reflect how many items the cell stands for
+- [x] Names shown only when a dot is alone in its cell
+- [x] Temporarily raise the mock data to ~5,000 items to prove it holds up
 
 **Tests written**
 
@@ -196,6 +196,14 @@ most bug-prone batch**, so it gets the most tests.
 8. Pan and zoom hard for thirty seconds with the console open. No errors, no stutter.
 
 **Done when:** steps 3 and 4 pass. If dots flicker, the batch is not finished.
+
+**Accepted with a known limitation.** Panning (step 3) and refreshing (step 4) are both
+fully stable. A separate, smaller amount of jitter remains when *zooming* over a crowded,
+zoomed-out view (many items compete for a few cells at once) - reduced twice over during
+testing, not eliminated. Zoltán tested the reduced version and chose to move on rather than
+chase it further; revisit if it turns out to matter once real data replaces the mock set
+(see Q3a in the product spec - this is a plain, independently-tested function, cheap to
+revisit).
 
 ---
 
