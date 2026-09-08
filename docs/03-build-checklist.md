@@ -27,7 +27,7 @@
 | 2 | Items on the line | 2–3 | See a cloud of placeholder items | [x] |
 | 3 | Grid sampling | 3–4 | Zoom out to a stable overview; zoom in for detail | [x] |
 | 4 | Entry view | 1–2 | Arrive and see the whole world, fitted | [x] |
-| 5 | Item cards and focusing | 3–4 | Click an item; the camera glides to it and shows a card | [ ] |
+| 5 | Item cards and focusing | 3–4 | Click an item; the camera glides to it and shows a card | [x] |
 | 6 | Mock login | 2–3 | Log in; items turn blue; refresh keeps you logged in | [ ] |
 | 7 | Drag to vote | 3–4 | Drag, preview, Submit — the item moves and locks | [ ] |
 | 8 | Search | 2 | Type a name; fly to it | [ ] |
@@ -240,12 +240,12 @@ revisit).
 
 **Build**
 
-- [ ] Install shadcn/ui and bring in the components needed
-- [ ] Card showing name, placeholder image, score, voter count and invented tags
-- [ ] Hover shows the card; click focuses the item
-- [ ] Focusing animates the camera to centre the item and zooms so ~20 neighbours show
+- [x] Install shadcn/ui and bring in the components needed
+- [x] Card showing name, placeholder image, score, voter count and invented tags
+- [x] Hover shows the card; click focuses the item
+- [x] Focusing animates the camera to centre the item and zooms so ~20 neighbours show
       either side
-- [ ] Camera position written into the web address
+- [x] Camera position written into the web address
 
 **Tests written**
 
