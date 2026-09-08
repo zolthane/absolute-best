@@ -3,27 +3,37 @@ export interface GridCellAssignment {
   cellRow: number;
 }
 
-// How many discrete zoom levels sit between one doubling of zoom and the
-// next. Grid cell boundaries are computed from this snapped value instead of
-// the raw camera zoom, so an amount of zoom too small to be a deliberate
-// user action - a mouse-wheel notch, trackpad sensor noise, floating-point
-// drift from repeated pinch gestures - can never flip which item represents
-// a crowded cell back and forth. A real, sustained zoom still crosses a
-// level and reshapes the grid; this only absorbs noise smaller than that.
-const ZOOM_LEVELS_PER_DOUBLING = 6;
+// How far (as a fraction, e.g. 0.12 = 12%) the raw camera zoom must move
+// away from the zoom the grid last used before the grid updates at all.
+const GRID_ZOOM_DEADZONE_RATIO = 0.12;
 
 /**
- * Snaps a camera zoom value to the nearest of a fixed ladder of levels,
- * spaced evenly on a log scale (so each step feels like the same amount of
- * "zoom" at any magnification). Use the result, not the raw zoom, when
- * computing grid cell indices - see `ZOOM_LEVELS_PER_DOUBLING` for why.
+ * Decides what zoom value the grid should use this render, given what it
+ * used last time and what the camera's raw zoom is now. Only moves when
+ * `rawZoom` has drifted more than `GRID_ZOOM_DEADZONE_RATIO` away from
+ * `previousGridZoom`, in either direction - otherwise it holds still.
+ *
+ * This is a dead-zone around the *previous result*, not a fixed ladder of
+ * thresholds: an earlier version snapped zoom to the nearest of a fixed set
+ * of levels, which is vulnerable to a coin-flip - a raw zoom sitting a
+ * floating-point epsilon away from one of those fixed lines would flip the
+ * entire grid on the next, arbitrarily small, change (confirmed: a change
+ * of 1e-12 was enough). Because this dead zone re-centres on wherever the
+ * grid last settled, there is no fixed line to sit near, so noise far
+ * smaller than the dead zone can never flip it - only a real, sustained
+ * zoom of a meaningful size can.
  */
-export function quantizeZoomForGrid(zoom: number): number {
-  if (!Number.isFinite(zoom) || zoom <= 0) {
-    return 1;
+export function nextGridZoom(previousGridZoom: number, rawZoom: number): number {
+  if (!Number.isFinite(rawZoom) || rawZoom <= 0) {
+    return previousGridZoom;
   }
-  const level = Math.round(Math.log2(zoom) * ZOOM_LEVELS_PER_DOUBLING);
-  return 2 ** (level / ZOOM_LEVELS_PER_DOUBLING);
+  if (!Number.isFinite(previousGridZoom) || previousGridZoom <= 0) {
+    return rawZoom;
+  }
+  const ratio = rawZoom / previousGridZoom;
+  const hasDriftedOutOfDeadzone =
+    ratio > 1 + GRID_ZOOM_DEADZONE_RATIO || ratio < 1 / (1 + GRID_ZOOM_DEADZONE_RATIO);
+  return hasDriftedOutOfDeadzone ? rawZoom : previousGridZoom;
 }
 
 export interface GridCell<T> {

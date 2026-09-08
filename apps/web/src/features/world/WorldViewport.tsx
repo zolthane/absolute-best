@@ -3,7 +3,7 @@ import {
   filterByVisibleRange,
   type GridCellAssignment,
   logScale,
-  quantizeZoomForGrid,
+  nextGridZoom,
   sampleGrid,
   screenPositionToCellIndex,
   screenToWorld,
@@ -89,6 +89,10 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   const activePointers = useRef(new Map<number, Point>());
   const panGestureStartX = useRef<number | null>(null);
   const pinchStartDistance = useRef<number | null>(null);
+  // The zoom the grid last used - deliberately separate from camera.zoom
+  // itself, so nextGridZoom can hold it still against noise. See
+  // nextGridZoom's doc comment for why.
+  const gridZoomRef = useRef(camera.zoom);
 
   // The viewport is assumed to fill the browser window (see App.tsx), so
   // window dimensions double as viewport dimensions - this sidesteps
@@ -229,11 +233,11 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   // single most-voted item never touches the very top edge of the screen.
   const maxDotHeightAboveAxis = axisTopPx * 0.9;
   const maxVoterCount = Math.max(MIN_VOTER_DOMAIN_MAX, ...items.map((item) => item.voterCount));
-  // Snapped to a fixed ladder of levels so that zoom noise too small to be a
-  // deliberate user action (a wheel notch, trackpad sensor jitter) cannot
-  // flip a crowded cell's membership back and forth - see
-  // quantizeZoomForGrid's own doc comment for why that would otherwise flicker.
-  const gridZoom = quantizeZoomForGrid(camera.zoom);
+  // Only moves once the real camera zoom has drifted meaningfully away from
+  // this - see nextGridZoom's doc comment for why that stops zoom noise from
+  // flipping a crowded cell's membership back and forth.
+  gridZoomRef.current = nextGridZoom(gridZoomRef.current, camera.zoom);
+  const gridZoom = gridZoomRef.current;
 
   const gridItems: GridItem[] = visibleItems.map((item) => {
     const screenY =

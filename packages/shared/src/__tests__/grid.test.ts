@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { worldToScreen } from "../camera";
 import {
   type GridCellAssignment,
-  quantizeZoomForGrid,
+  nextGridZoom,
   sampleGrid,
   screenPositionToCellIndex,
   worldPositionToCellIndex,
@@ -120,25 +120,62 @@ describe("worldPositionToCellIndex", () => {
   });
 });
 
-describe("quantizeZoomForGrid", () => {
-  it("absorbs a change too small to be a deliberate zoom", () => {
-    // The reported bug: two items near a cell boundary flip in and out of
-    // being merged as the zoom value jitters by a fraction of a percent -
-    // from mouse-wheel notches, trackpad sensor noise, or floating-point
-    // drift across repeated pinch gestures. None of that should be able to
-    // move the grid at all.
-    const base = quantizeZoomForGrid(4);
-    expect(quantizeZoomForGrid(4 * 1.001)).toBe(base);
-    expect(quantizeZoomForGrid(4 * 0.999)).toBe(base);
+describe("nextGridZoom", () => {
+  it("holds still for a change too small to be a deliberate zoom", () => {
+    // The reported bug: crowded, zoomed-out views kept reshuffling on their
+    // own with no user input large enough to explain it. None of this
+    // should be able to move the grid at all.
+    expect(nextGridZoom(4, 4 * 1.001)).toBe(4);
+    expect(nextGridZoom(4, 4 * 0.999)).toBe(4);
+  });
+
+  it("has no fixed threshold a raw zoom can sit next to and flip", () => {
+    // A first attempt at this snapped zoom to the nearest of a fixed ladder
+    // of levels. That has hard lines in zoom-space: a raw zoom sitting a
+    // floating-point epsilon away from one of those lines flips the entire
+    // grid on the next, arbitrarily small, change - confirmed against that
+    // implementation, a change of 1e-12 was enough. A dead zone centred on
+    // the *previous result* has no such fixed line to sit next to.
+    const settled = 1.0594630943592953; // sits exactly on an old ladder line
+    expect(nextGridZoom(settled, settled + 1e-9)).toBe(settled);
+    expect(nextGridZoom(settled, settled - 1e-9)).toBe(settled);
   });
 
   it("still moves for a real, sustained zoom", () => {
-    expect(quantizeZoomForGrid(4)).not.toBe(quantizeZoomForGrid(8));
+    expect(nextGridZoom(4, 8)).toBe(8);
+    expect(nextGridZoom(4, 1)).toBe(1);
+  });
+
+  it("stays put through many tiny steps, then catches up once they add up to a real zoom", () => {
+    let gridZoom = 4;
+    let rawZoom = 4;
+    let updates = 0;
+    // A smooth continuous zoom gesture, modelled as many tiny multiplicative
+    // steps (as a real wheel/pinch gesture would deliver) rather than one
+    // big jump.
+    for (let i = 0; i < 400; i++) {
+      rawZoom *= 1.001;
+      const next = nextGridZoom(gridZoom, rawZoom);
+      if (next !== gridZoom) {
+        updates++;
+      }
+      gridZoom = next;
+    }
+    // rawZoom has grown by roughly 1.001^400 ≈ 1.49x - a real, sustained
+    // zoom - so the grid must have moved to keep up, just not on every step:
+    // it should be within one dead zone of the final raw value, not still
+    // sitting all the way back at 4.
+    expect(gridZoom / rawZoom).toBeGreaterThan(1 / 1.12);
+    expect(updates).toBeGreaterThan(0);
+    expect(updates).toBeLessThan(400);
   });
 
   it("returns a safe fallback for non-finite or invalid input, never NaN", () => {
-    for (const zoom of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
-      expect(Number.isFinite(quantizeZoomForGrid(zoom))).toBe(true);
+    for (const rawZoom of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(Number.isFinite(nextGridZoom(4, rawZoom))).toBe(true);
+    }
+    for (const previous of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(Number.isFinite(nextGridZoom(previous, 4))).toBe(true);
     }
   });
 });
