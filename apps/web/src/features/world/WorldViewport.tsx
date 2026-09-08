@@ -3,6 +3,7 @@ import {
   filterByVisibleRange,
   type GridCellAssignment,
   logScale,
+  quantizeZoomForGrid,
   sampleGrid,
   screenPositionToCellIndex,
   screenToWorld,
@@ -228,6 +229,11 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   // single most-voted item never touches the very top edge of the screen.
   const maxDotHeightAboveAxis = axisTopPx * 0.9;
   const maxVoterCount = Math.max(MIN_VOTER_DOMAIN_MAX, ...items.map((item) => item.voterCount));
+  // Snapped to a fixed ladder of levels so that zoom noise too small to be a
+  // deliberate user action (a wheel notch, trackpad sensor jitter) cannot
+  // flip a crowded cell's membership back and forth - see
+  // quantizeZoomForGrid's own doc comment for why that would otherwise flicker.
+  const gridZoom = quantizeZoomForGrid(camera.zoom);
 
   const gridItems: GridItem[] = visibleItems.map((item) => {
     const screenY =
@@ -240,11 +246,13 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
       screenX: worldToScreen(item.score, camera, viewportWidth),
       screenY,
       // X is anchored in world space (zoom-derived cell width, no pan term
-      // at all) so panning cannot reshuffle a cell's contents. Y has no
-      // camera of its own in Stage 0, so its already-computed screen
-      // position can be bucketed directly.
-      cellCol: worldPositionToCellIndex(item.score, camera.zoom, GRID_CELL_SIZE_PX),
-      cellRow: screenPositionToCellIndex(screenY, GRID_CELL_SIZE_PX),
+      // at all) so panning cannot reshuffle a cell's contents. Y has no pan
+      // of its own in Stage 0, but still sharpens with zoom - see
+      // screenPositionToCellIndex's doc comment for why that matters even
+      // for an axis with no camera: it's the only way two items tied on the
+      // exact same score can ever resolve into separate dots.
+      cellCol: worldPositionToCellIndex(item.score, gridZoom, GRID_CELL_SIZE_PX),
+      cellRow: screenPositionToCellIndex(screenY, gridZoom, GRID_CELL_SIZE_PX),
     };
   });
   const cells = sampleGrid(gridItems, compareGridItems);

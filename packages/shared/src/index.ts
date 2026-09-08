@@ -11,6 +11,7 @@ export {
 export {
   type GridCell,
   type GridCellAssignment,
+  quantizeZoomForGrid,
   sampleGrid,
   screenPositionToCellIndex,
   worldPositionToCellIndex,

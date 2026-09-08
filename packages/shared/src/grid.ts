@@ -3,6 +3,29 @@ export interface GridCellAssignment {
   cellRow: number;
 }
 
+// How many discrete zoom levels sit between one doubling of zoom and the
+// next. Grid cell boundaries are computed from this snapped value instead of
+// the raw camera zoom, so an amount of zoom too small to be a deliberate
+// user action - a mouse-wheel notch, trackpad sensor noise, floating-point
+// drift from repeated pinch gestures - can never flip which item represents
+// a crowded cell back and forth. A real, sustained zoom still crosses a
+// level and reshapes the grid; this only absorbs noise smaller than that.
+const ZOOM_LEVELS_PER_DOUBLING = 6;
+
+/**
+ * Snaps a camera zoom value to the nearest of a fixed ladder of levels,
+ * spaced evenly on a log scale (so each step feels like the same amount of
+ * "zoom" at any magnification). Use the result, not the raw zoom, when
+ * computing grid cell indices - see `ZOOM_LEVELS_PER_DOUBLING` for why.
+ */
+export function quantizeZoomForGrid(zoom: number): number {
+  if (!Number.isFinite(zoom) || zoom <= 0) {
+    return 1;
+  }
+  const level = Math.round(Math.log2(zoom) * ZOOM_LEVELS_PER_DOUBLING);
+  return 2 ** (level / ZOOM_LEVELS_PER_DOUBLING);
+}
+
 export interface GridCell<T> {
   representative: T;
   count: number;
@@ -62,14 +85,26 @@ export function worldPositionToCellIndex(
 }
 
 /**
- * The screen-space equivalent for an axis with no camera of its own (the Y
- * axis in Stage 0: voter count maps straight to a screen position with no
- * pan or zoom to account for), so cell assignment is just the screen
- * position divided into fixed-size bands.
+ * The screen-space equivalent for an axis with no pan of its own (the Y axis
+ * in Stage 0: voter count maps straight to a screen position that never
+ * shifts under panning). `zoom` still narrows the bands as it grows, purely
+ * so that two items tied on X (identical score, which horizontal zoom can
+ * never separate - multiplying equal numbers by the same zoom keeps them
+ * equal) can still resolve into two dots once their vote counts differ
+ * enough. Pass 1 for an axis that should never get more precise.
  */
-export function screenPositionToCellIndex(screenPosition: number, cellSizePixels: number): number {
-  if (!Number.isFinite(screenPosition) || cellSizePixels <= 0) {
+export function screenPositionToCellIndex(
+  screenPosition: number,
+  zoom: number,
+  cellSizePixels: number,
+): number {
+  if (
+    !Number.isFinite(screenPosition) ||
+    !Number.isFinite(zoom) ||
+    zoom <= 0 ||
+    cellSizePixels <= 0
+  ) {
     return 0;
   }
-  return Math.floor(screenPosition / cellSizePixels);
+  return Math.floor((screenPosition * zoom) / cellSizePixels);
 }
