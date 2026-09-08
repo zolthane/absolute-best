@@ -83,8 +83,13 @@ appears immediately.
 **Drag-to-vote** — voting by physically dragging an item along the line rather than
 clicking a star rating. The drag snaps to the 21 whole numbers from −10 to +10.
 
-**Fan-out (or branching)** — when several items share the same score, they are stacked
-vertically with small connecting stems so that none of them are hidden behind the others.
+**Grid sampling** — the screen is divided into cells of roughly 40×40 pixels and only one
+item is drawn per cell, chosen as the most-voted item in that cell. This keeps the number of
+dots on screen roughly constant however large the site grows, and zooming in reveals more.
+
+> *Fan-out* was an earlier idea — stacking same-score items vertically with connecting stems
+> — abandoned once the Y axis was given a meaning (how many people voted). Items sharing a
+> score now separate naturally by height, and grid sampling handles genuine crowding.
 
 **Opinion DNA** — a proposed future feature that describes a user's taste based on how they
 have voted, rather than by asking them questions.

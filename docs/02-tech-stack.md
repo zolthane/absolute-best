@@ -2,9 +2,9 @@
 
 | | |
 | --- | --- |
-| **Version** | 0.2 — revised for your REST decision (T2) |
+| **Version** | 1.0 — REST chosen at T2 |
 | **Date** | 2026-09-07 |
-| **Status** | **AWAITING YOUR APPROVAL** — T1–T5 answered; Section 13 not yet signed |
+| **Status** | **APPROVED** by Lovas Zoltán, 2026-09-08 |
 | **Purpose** | Agree which tools we build with, before any of them are installed |
 | **Depends on** | [Business plan](00-business-plan.md) — **approved** 2026-09-07, D1–D8 answered |
 
@@ -290,7 +290,7 @@ unusually well suited to it, because **its hardest logic is pure arithmetic**.
 | --- | --- | --- |
 | Score arithmetic | Vitest | Sums, one-vote-per-user, and that a second vote is rejected. The core promise of the product. |
 | Screen ↔ world coordinates | Vitest | The maths behind pan and zoom. Fiddly, invisible, and the source of most map bugs. |
-| Fan-out layout | Vitest | Where items go when they share a score. Pure input → output. |
+| Grid sampling | Vitest | Which single item represents each cell of the map. Pure input → output. |
 | Visible-range culling | Vitest | Which items get drawn. A bug here means items vanish. |
 | Search matching | Vitest | Does typing "alpha" find "Sample Film Alpha"? |
 | Components | Vitest + React Testing Library | Does the card appear on hover? Is the slider hidden when logged out? |
@@ -396,7 +396,7 @@ guide you can follow yourself.
 | Batch | What gets built | How you test it |
 | --- | --- | --- |
 | **1** | Empty monorepo, tooling, Biome, Vitest, CI. Nothing visible. | `npm test` runs and passes |
-| **2** | The world line: camera, pan, zoom, mock items, fan-out. **No backend.** | Drag and scroll the map in your browser |
+| **2** | The world line: camera, pan, zoom, mock items, grid sampling. **No backend.** | Drag and scroll the map in your browser |
 | **3** | Item cards, search, the intro screen and animation | Hover an item, search for one |
 | **4** | Postgres in Docker, Prisma schema, seeded placeholder data | Open Prisma Studio and look at the data |
 | **5** | Fastify REST API, items loaded from the real database | The map now shows database items, and `/docs` lists every endpoint |

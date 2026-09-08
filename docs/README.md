@@ -10,12 +10,12 @@ directly on GitHub. **You cannot break anything by editing them.**
 
 | # | Document | What it answers | Status |
 | --- | --- | --- | --- |
-| 00 | [Business plan](00-business-plan.md) | What are we building, for whom, why, at what cost and risk? | **Awaiting your approval** |
-| 01 | [Product spec — Part 1](01-product-spec.md) | The map and voting, interaction by interaction | **Awaiting your approval** |
-| 02 | [Technology stack](02-tech-stack.md) | Which tools we build with, and why each one | **Awaiting your approval** |
-| 03 | [Build checklist](03-build-checklist.md) | The ordered build steps for Stage 0, tickable as we go | **Awaiting your approval** |
-| 04 | [Tagging and filters](04-tagging-and-filters.md) | Automatic tags from Wikidata, and which filters are free vs premium | Approved |
-| 05 | [Supporting features](05-supporting-features.md) | Feedback, moderation, legal pages, share previews — everything that is not the map | **Awaiting your approval** |
+| 00 | [Business plan](00-business-plan.md) | What are we building, for whom, why, at what cost and risk? | ✅ Approved |
+| 01 | [Product spec — Part 1](01-product-spec.md) | The map and voting, interaction by interaction | ✅ Approved |
+| 02 | [Technology stack](02-tech-stack.md) | Which tools we build with, and why each one | ✅ Approved |
+| 03 | [Build checklist](03-build-checklist.md) | The ordered build steps for Stage 0, tickable as we go | ✅ Approved |
+| 04 | [Tagging and filters](04-tagging-and-filters.md) | Automatic tags from Wikidata, and which filters are free vs premium | ✅ Approved |
+| 05 | [Supporting features](05-supporting-features.md) | Feedback, moderation, legal pages, share previews — everything that is not the map | ✅ Approved |
 | 10 | [Local setup](10-local-setup.md) | How to get your machine ready | Available now — a how-to, not a plan to approve |
 | 11 | [Git workflow](11-git-workflow.md) | Branch rules: `main` / `dev` / `feature/xy` | Active |
 | 99 | [Glossary](99-glossary.md) | Plain-language explanations of the technical words | Available now |

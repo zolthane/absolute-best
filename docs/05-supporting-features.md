@@ -2,9 +2,9 @@
 
 | | |
 | --- | --- |
-| **Version** | 0.1 — Draft |
+| **Version** | 1.0 |
 | **Date** | 2026-09-08 |
-| **Status** | **AWAITING YOUR APPROVAL** |
+| **Status** | **APPROVED** by Lovas Zoltán, 2026-09-08 |
 | **Purpose** | Catch what the other documents missed, before building starts |
 | **Origin** | Your question: *"we are missing a lot of QoL options… is there anything else?"* |
 
@@ -391,7 +391,7 @@ Stage 0 has passed its gate.
 **E1 — Achievements built around variety and judgement, never repetition?** *(10.3.
 Recommended: yes, Stage 2.)*
 
-- [ ] Yes — Stage 2
+- [x] Yes — Stage 2
 - [ ] Yes, but later than Stage 2
 - [ ] Not interested
 
@@ -399,13 +399,13 @@ Recommended: yes, Stage 2.)*
 measures?** *(10.1, 10.2. Recommended: yes — a volume leaderboard would corrupt both axes
 and decide what the map displays.)*
 
-- [ ] Agreed — never rank by raw votes cast
+- [x] Agreed — never rank by raw votes cast
 - [ ] I want a votes-cast leaderboard anyway
 - [ ] Other: `________________________`
 
 **E3 — Any public leaderboard at all?** *(10.4.)*
 
-- [ ] Yes, but opt-in, time-boxed, and ranked on contribution or tastemaking *(recommended)*
+- [x] Yes, but opt-in, time-boxed, and ranked on contribution or tastemaking *(recommended)*
 - [ ] Percentiles only — no named ranking
 - [ ] No leaderboards; achievements and private stats only
 - [ ] Other: `________________________`

@@ -137,10 +137,11 @@ is invented placeholder data that resets when the page is refreshed.
 What exists at the end:
 
 - The intro screen and the animated entry into the world line
-- The line itself: pan, zoom, items positioned by score, and items sharing a score fanning
-  out vertically instead of overlapping
+- The line itself: pan, zoom, items positioned left-to-right by score and bottom-to-top by
+  how many people voted, with a representative sample drawn at each zoom level
 - Hovering an item shows an information card
-- A pretend login, after which you can drag an item to vote and watch the total change
+- A pretend login, after which you can drag an item and press Submit to cast a vote, and
+  watch the total change
 - Search that flies the camera to an item
 - "Add an entry from a link", which invents a placeholder item and refuses duplicates
 - Items drifting on their own, simulating other people voting

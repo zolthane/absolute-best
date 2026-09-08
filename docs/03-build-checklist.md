@@ -2,11 +2,11 @@
 
 | | |
 | --- | --- |
-| **Version** | 0.1 — Draft |
+| **Version** | 1.0 |
 | **Date** | 2026-09-07 |
-| **Status** | **AWAITING YOUR APPROVAL** |
+| **Status** | **APPROVED** by Lovas Zoltán, 2026-09-08 |
 | **Covers** | Stage 0 only — the clickable prototype. No server, no database, no real accounts. |
-| **Based on** | [Business plan](00-business-plan.md) v1.0 (approved) · [Product spec](01-product-spec.md) · [Tech stack](02-tech-stack.md) v0.2 |
+| **Based on** | [Business plan](00-business-plan.md) v1.0 (approved) · [Product spec](01-product-spec.md) · [Tech stack](02-tech-stack.md) v1.0 |
 
 > **How this works.** Thirteen batches. Each is sized to be finished in **one sitting of
 > two to four hours**, because your time budget (D5) is a few hours a week. Each one ends
@@ -23,7 +23,7 @@
 | # | Batch | Hours | What you will be able to do at the end | Done |
 | --- | --- | --- | --- | --- |
 | 0 | Project skeleton | 2–3 | Run `npm test` and `npm run dev` | [ ] |
-| 1 | The axis and the camera | 3–4 | Drag and zoom around an empty world line | [ ] |
+| 1 | The axis and the camera | 4–5 | Drag and zoom around an empty world line | [ ] |
 | 2 | Items on the line | 2–3 | See a cloud of placeholder items | [ ] |
 | 3 | Grid sampling | 3–4 | Zoom out to a stable overview; zoom in for detail | [ ] |
 | 4 | Entry view | 1–2 | Arrive and see the whole world, fitted | [ ] |
@@ -36,7 +36,7 @@
 | 11 | Intro screen | 2–3 | The full first-run experience | [ ] |
 | 12 | End-to-end tests and polish | 3–4 | One command proves the whole journey works | [ ] |
 
-**Total: roughly 30–40 hours.** At a few hours a week, expect **two to three months**. There
+**Total: roughly 32–42 hours.** At a few hours a week, expect **two to three months**. There
 is no deadline (D5) and the order is designed so that the riskiest question — *does dragging
 things feel good?* — is answered by **batch 7**, about halfway.
 
@@ -95,9 +95,12 @@ sits on, and its maths is where map bugs hide.
 
 - [ ] Pure functions `worldToScreen` and `screenToWorld` in `packages/shared`
 - [ ] The black horizontal X axis, with 0 marked at the centre
+- [ ] **0 drawn as a small fulcrum triangle** beneath the axis (W1)
 - [ ] Tick marks and number labels that stay readable at any zoom
 - [ ] Pan: drag the background
-- [ ] Zoom: mouse wheel, centred on the pointer, not the screen centre
+- [ ] Zoom: centred on the pointer, not the screen centre
+- [ ] **Pointer Events throughout — one code path for mouse, touch and pen (S1)**
+- [ ] **Pinch-to-zoom, and a tap distinguished from a drag (S1)**
 - [ ] Camera state in Zustand, applied outside React so panning stays smooth
 
 **Tests written** — this batch gets the heaviest testing in the project:
@@ -119,8 +122,12 @@ sits on, and its maths is where map bugs hide.
 6. Open the browser console (F12). Pan and zoom for ten seconds. **There must be no red
    errors.**
 7. Drag continuously in circles. Movement should feel smooth, with no stutter.
+8. Check that **0 is drawn as a small triangle** beneath the line, like a seesaw pivot.
+9. **On a phone** (open the same address on your phone, on the same wi-fi): drag with one
+   finger to pan, pinch with two to zoom. A quick tap should not be mistaken for a drag, and
+   the page itself should not scroll while you pan.
 
-**Done when:** step 4 and step 6 both pass. They are the ones that matter.
+**Done when:** steps 4, 6 and 9 pass. They are the ones that matter.
 
 ---
 
@@ -298,6 +305,11 @@ passwords, no real accounts** — this is a pretend session stored in your own b
 - [ ] On submit: score changes by the vote, voter count rises by one, item locks and turns
       grey
 - [ ] Logged-out visitors cannot drag at all
+- [ ] **Works by touch as well as mouse (S1)** — drag and Submit on a phone
+- [ ] **Weighted settle (W2):** the item springs to its new position, overshooting slightly,
+      with the overshoot shrinking as voter count rises. **Keep it very subtle** — your
+      answer to W2 was "yes, but subtle"
+- [ ] **Honour `prefers-reduced-motion`** — move directly, with no spring, when it is set
 
 **Tests written** — the core promise of the product, so tested hard:
 
@@ -372,7 +384,8 @@ at score 0 with 0 voters.
 ## Batch 10 — The living world
 
 - [ ] A timer that gently changes scores and voter counts, imitating other people voting
-- [ ] Items animate to their new positions rather than jumping
+- [ ] Items animate to their new positions rather than jumping, reusing the **weighted
+      settle** from batch 7 (W2) — heavily-voted items barely stir, obscure ones swing
 - [ ] The "people on site" counter drifts realistically
 
 **Tests written:** the simulation stays within sensible bounds and can be stopped cleanly
@@ -394,9 +407,17 @@ at score 0 with 0 voters.
 Deliberately late: it is presentation, and the risky parts came first.
 
 - [ ] Centred "Teeter" logo with the tagline *"Tip the scales."* (business plan §14.4)
-- [ ] Taglines from the business plan cross-fading below
+- [ ] **The wordmark balances on a pivot and rocks gently (W3)**
 - [ ] Start button
 - [ ] Animated transition: the logo shrinks away as the axis draws itself in
+- [ ] **A "?" button that reopens this explanation from the map (S2)** — for everyone who
+      clicks straight past the intro
+- [ ] **Seesaw loading indicator (W3)**
+- [ ] ~~Feedback `mailto:` link~~ — **deferred**: S2 asked for one, but S3 chose to wait for
+      a domain, so there is no address yet. Add it the moment there is one
+
+> **No feedback link ships in Stage 0.** That is a consequence of S2 and S3 together, not an
+> oversight. Testers give feedback to you directly.
 
 **Manual test guide**
 

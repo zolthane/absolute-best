@@ -2,9 +2,9 @@
 
 | | |
 | --- | --- |
-| **Version** | 0.1 — Draft |
+| **Version** | 1.0 |
 | **Date** | 2026-09-07 |
-| **Status** | **AWAITING YOUR APPROVAL** |
+| **Status** | **APPROVED** by Lovas Zoltán, 2026-09-08 |
 | **Scope** | Only the two areas settled so far: entering the map, and casting a vote |
 | **Not yet covered** | Intro screen, adding entries, Quick Fire, profiles, item cards |
 
