@@ -53,7 +53,7 @@ maintained by the Wikidata community, and free to read.
 
 ### What a stored item would actually look like
 
-Placeholder data, per the organisation's mock-data rule:
+Placeholder data — the title and identifier below are invented, not a real entry:
 
 ```
 Item:  "Sample Film Alpha"

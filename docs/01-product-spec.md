@@ -392,8 +392,8 @@ an empty map is boring, and boring maps attract no votes. Recording the practica
 here so it is not lost:
 
 - **Stage 0** uses roughly 100 clearly-labelled placeholder items ("Sample Film Alpha" and
-  similar), per the organisation's mock-data rule. Nothing real is needed to prove the
-  interaction works.
+  similar) rather than real titles, so nothing in the prototype can be mistaken for real
+  data. Nothing real is needed to prove the interaction works.
 - **Stage 1** replaces them with real entries drawn from Wikipedia. That is the first point
   at which the Wikipedia API is contacted for real, and it needs the licensing and
   attribution review noted in the business plan's Section 11.

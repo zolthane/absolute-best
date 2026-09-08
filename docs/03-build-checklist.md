@@ -130,8 +130,8 @@ sits on, and its maths is where map bugs hide.
 
 **Build**
 
-- [ ] ~200 placeholder items ("Sample Film Alpha" and similar) with a score and a voter
-      count, per the organisation's mock-data rule
+- [ ] ~200 placeholder items ("Sample Film Alpha" and similar, never real titles) with a
+      score and a voter count
 - [ ] Logarithmic Y scale as a pure function
 - [ ] Draw each item as a dot at its score and voter count
 - [ ] Draw only items inside the visible area
