@@ -1,8 +1,12 @@
 import {
   computeNiceTicks,
   filterByVisibleRange,
+  type GridCellAssignment,
   logScale,
+  sampleGrid,
+  screenPositionToCellIndex,
   screenToWorld,
+  worldPositionToCellIndex,
   worldToScreen,
 } from "@teeter/shared";
 import { useEffect, useRef, useState } from "react";
@@ -39,6 +43,33 @@ const PAN_BUFFER_FACTOR = 2;
 // its dot reaches the very top of its headroom. Chosen per render from the
 // actual data instead, so this is only the floor for an otherwise-empty map.
 const MIN_VOTER_DOMAIN_MAX = 10;
+
+// Product spec section 2: ~40x40 screen pixels per grid cell, at any zoom.
+const GRID_CELL_SIZE_PX = 40;
+
+// A cell holding this many items or more is treated as "maximally crowded"
+// for sizing and darkening purposes - beyond it, a dot simply stays at its
+// largest, darkest state rather than continuing to grow without bound.
+const MAX_CELL_DENSITY_FOR_STYLING = 50;
+const DOT_MIN_SIZE_PX = 8;
+const DOT_MAX_SIZE_PX = 22;
+const DOT_MIN_OPACITY = 0.45;
+
+interface GridItem extends GridCellAssignment {
+  id: string;
+  title: string;
+  voterCount: number;
+  order: number;
+  screenX: number;
+  screenY: number;
+}
+
+// Product spec Q3b: most-voted represents the cell; ties broken by oldest,
+// simply for a fully deterministic tiebreaker (any consistent rule would
+// serve the same stability goal - this happens to be the one chosen).
+function compareGridItems(a: GridItem, b: GridItem): number {
+  return a.voterCount !== b.voterCount ? b.voterCount - a.voterCount : a.order - b.order;
+}
 
 interface WorldViewportProps {
   // Overridable so tests can render a small, known set of items instead of
@@ -198,6 +229,26 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   const maxDotHeightAboveAxis = axisTopPx * 0.9;
   const maxVoterCount = Math.max(MIN_VOTER_DOMAIN_MAX, ...items.map((item) => item.voterCount));
 
+  const gridItems: GridItem[] = visibleItems.map((item) => {
+    const screenY =
+      axisTopPx - logScale(item.voterCount, 1, maxVoterCount, 0, maxDotHeightAboveAxis);
+    return {
+      id: item.id,
+      title: item.title,
+      voterCount: item.voterCount,
+      order: item.order,
+      screenX: worldToScreen(item.score, camera, viewportWidth),
+      screenY,
+      // X is anchored in world space (zoom-derived cell width, no pan term
+      // at all) so panning cannot reshuffle a cell's contents. Y has no
+      // camera of its own in Stage 0, so its already-computed screen
+      // position can be bucketed directly.
+      cellCol: worldPositionToCellIndex(item.score, camera.zoom, GRID_CELL_SIZE_PX),
+      cellRow: screenPositionToCellIndex(screenY, GRID_CELL_SIZE_PX),
+    };
+  });
+  const cells = sampleGrid(gridItems, compareGridItems);
+
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: keyboard access to the map is tracked as Stage 1 work (docs/05-supporting-features.md, decision S6), not built yet.
     <div
@@ -250,10 +301,10 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
           </div>
         ))}
 
-        {visibleItems.map((item) => (
+        {cells.map(({ representative, count }) => (
           <ItemDot
-            key={item.id}
-            screenX={worldToScreen(item.score, camera, viewportWidth)}
+            key={`${representative.cellCol}:${representative.cellRow}`}
+            screenX={representative.screenX}
             // logScale's domainMin is 1, so both 0 and 1 voter map to the
             // same screen position - the axis line itself. That reads a
             // little oddly for an item that HAS a score, since any score
@@ -261,9 +312,17 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
             // Stage 0's mock data doesn't enforce that relationship either
             // (see the comment in mockItems.ts), and real votes make a
             // 0-voter item with a nonzero score impossible by construction.
-            screenY={
-              axisTopPx - logScale(item.voterCount, 1, maxVoterCount, 0, maxDotHeightAboveAxis)
-            }
+            screenY={representative.screenY}
+            title={representative.title}
+            count={count}
+            sizePx={logScale(
+              count,
+              1,
+              MAX_CELL_DENSITY_FOR_STYLING,
+              DOT_MIN_SIZE_PX,
+              DOT_MAX_SIZE_PX,
+            )}
+            opacity={logScale(count, 1, MAX_CELL_DENSITY_FOR_STYLING, DOT_MIN_OPACITY, 1)}
           />
         ))}
       </div>

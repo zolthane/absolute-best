@@ -1,18 +1,32 @@
 interface ItemDotProps {
   screenX: number;
   screenY: number;
+  title: string;
+  count: number;
+  sizePx: number;
+  opacity: number;
 }
 
-// A plain, uniform dot for now - colour (blue = votable, grey = locked) is
-// R10, wired up once logins exist in batch 6; density-based sizing for
-// crowded cells is batch 3's grid sampling. This is deliberately the
-// simplest thing that shows an item exists at all.
-export function ItemDot({ screenX, screenY }: ItemDotProps) {
+// The dot and its label are siblings, not parent/child: opacity applies to
+// an element's whole subtree in CSS, so a label nested inside a dimmed dot
+// would be dimmed along with it and become hard to read for a lone item.
+export function ItemDot({ screenX, screenY, title, count, sizePx, opacity }: ItemDotProps) {
   return (
-    <div
-      data-testid="item-dot"
-      className="absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-neutral-500"
-      style={{ left: screenX, top: screenY }}
-    />
+    <>
+      <div
+        data-testid="item-dot"
+        className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full bg-black"
+        style={{ left: screenX, top: screenY, width: sizePx, height: sizePx, opacity }}
+      />
+      {count === 1 && (
+        <span
+          data-testid="item-label"
+          className="-translate-x-1/2 absolute whitespace-nowrap text-[10px] text-neutral-700"
+          style={{ left: screenX, top: screenY + sizePx / 2 + 4 }}
+        >
+          {title}
+        </span>
+      )}
+    </>
   );
 }

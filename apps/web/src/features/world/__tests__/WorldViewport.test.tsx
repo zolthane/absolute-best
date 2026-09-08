@@ -101,7 +101,7 @@ describe("WorldViewport", () => {
 
   describe("items", () => {
     it("positions a dot at the screen location of its score", () => {
-      const items: Item[] = [{ id: "1", title: "Solo", score: 20, voterCount: 100 }];
+      const items: Item[] = [{ id: "1", title: "Solo", score: 20, voterCount: 100, order: 0 }];
       render(<WorldViewport items={items} />);
 
       // camera is { center: 0, zoom: 4 }, viewportWidth 1000: worldToScreen(20) = 20*4 + 500 = 580.
@@ -109,7 +109,7 @@ describe("WorldViewport", () => {
     });
 
     it("positions the single most-voted item at the top of its headroom", () => {
-      const items: Item[] = [{ id: "1", title: "Solo", score: 0, voterCount: 100 }];
+      const items: Item[] = [{ id: "1", title: "Solo", score: 0, voterCount: 100, order: 0 }];
       render(<WorldViewport items={items} />);
 
       const axisTopPx = 0.8 * window.innerHeight;
@@ -121,7 +121,7 @@ describe("WorldViewport", () => {
     });
 
     it("does not crash or misplace an item with zero voters", () => {
-      const items: Item[] = [{ id: "1", title: "Unvoted", score: 0, voterCount: 0 }];
+      const items: Item[] = [{ id: "1", title: "Unvoted", score: 0, voterCount: 0, order: 0 }];
       render(<WorldViewport items={items} />);
 
       const dot = screen.getByTestId("item-dot");
@@ -131,12 +131,100 @@ describe("WorldViewport", () => {
 
     it("only renders items within the visible (buffered) range", () => {
       const items: Item[] = [
-        { id: "near", title: "Near", score: 0, voterCount: 10 },
-        { id: "far", title: "Far", score: 1_000_000, voterCount: 10 },
+        { id: "near", title: "Near", score: 0, voterCount: 10, order: 0 },
+        { id: "far", title: "Far", score: 1_000_000, voterCount: 10, order: 1 },
       ];
       render(<WorldViewport items={items} />);
 
       expect(screen.getAllByTestId("item-dot")).toHaveLength(1);
+    });
+  });
+
+  describe("grid sampling (batch 3)", () => {
+    it("collapses two items sharing a cell into a single dot, at the older item's position on a tie", () => {
+      // Winner-selection itself (most-voted, ties broken by age) is tested
+      // exhaustively in packages/shared's grid.test.ts against plain
+      // {cellCol, cellRow} values; this only proves the real component
+      // wires real score/voterCount data into the same grid correctly.
+      // Equal voterCount keeps both items in the same screen-Y band too -
+      // giving them different voterCount would have put them in different
+      // Y cells, which is a distinct behaviour, not what this test is for.
+      const items: Item[] = [
+        { id: "a", title: "Alpha", score: 2, voterCount: 100, order: 0 },
+        { id: "b", title: "Beta", score: 3, voterCount: 100, order: 1 },
+      ];
+      render(<WorldViewport items={items} />);
+
+      const dots = screen.getAllByTestId("item-dot");
+      expect(dots).toHaveLength(1);
+      // worldToScreen(2, {center:0,zoom:4}, 1000) = 508 - Alpha's position,
+      // the older of the two on this voterCount tie.
+      expect(Number.parseFloat(dots[0]?.style.left ?? "")).toBeCloseTo(508, 9);
+    });
+
+    it("keeps items in different cells as separate dots", () => {
+      const items: Item[] = [
+        { id: "a", title: "Alpha", score: -50, voterCount: 10, order: 0 },
+        { id: "b", title: "Beta", score: 50, voterCount: 10, order: 1 },
+      ];
+      render(<WorldViewport items={items} />);
+
+      expect(screen.getAllByTestId("item-dot")).toHaveLength(2);
+    });
+
+    it("shows a label only for a dot that is alone in its cell", () => {
+      const alone: Item[] = [{ id: "a", title: "Alpha", score: 0, voterCount: 10, order: 0 }];
+      const { unmount } = render(<WorldViewport items={alone} />);
+      expect(screen.getByTestId("item-label")).toHaveTextContent("Alpha");
+      unmount();
+
+      const crowded: Item[] = [
+        { id: "a", title: "Alpha", score: 2, voterCount: 100, order: 0 },
+        { id: "b", title: "Beta", score: 3, voterCount: 100, order: 1 },
+      ];
+      render(<WorldViewport items={crowded} />);
+      expect(screen.queryByTestId("item-label")).not.toBeInTheDocument();
+    });
+
+    it("draws a larger dot for a more crowded cell than for a lone item", () => {
+      const alone: Item[] = [{ id: "a", title: "Alpha", score: 0, voterCount: 10, order: 0 }];
+      const { unmount } = render(<WorldViewport items={alone} />);
+      const aloneSize = Number.parseFloat(screen.getByTestId("item-dot").style.width);
+      unmount();
+
+      const crowded: Item[] = [
+        { id: "a", title: "Alpha", score: 2, voterCount: 100, order: 0 },
+        { id: "b", title: "Beta", score: 3, voterCount: 100, order: 1 },
+      ];
+      render(<WorldViewport items={crowded} />);
+      const crowdedSize = Number.parseFloat(screen.getByTestId("item-dot").style.width);
+
+      expect(crowdedSize).toBeGreaterThan(aloneSize);
+    });
+
+    it("does not reshuffle which items are shown when panning less than one cell", () => {
+      const items: Item[] = [
+        { id: "a", title: "Alpha", score: -50, voterCount: 10, order: 0 },
+        { id: "b", title: "Beta", score: 50, voterCount: 10, order: 1 },
+      ];
+      render(<WorldViewport items={items} />);
+      const before = screen.getAllByTestId("item-dot").map((dot) => dot.style.left);
+
+      const viewport = screen.getByTestId("world-viewport");
+      fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 500 });
+      fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 505 });
+      fireEvent.pointerUp(viewport, { pointerId: 1, clientX: 505 });
+
+      const after = screen.getAllByTestId("item-dot").map((dot) => dot.style.left);
+      expect(after).toHaveLength(before.length);
+      // Both dots should have moved by exactly the pan distance (5px),
+      // not reshuffled to a different representative or a different count.
+      for (const [index, leftBefore] of before.entries()) {
+        expect(Number.parseFloat(after[index] ?? "")).toBeCloseTo(
+          Number.parseFloat(leftBefore ?? "") + 5,
+          9,
+        );
+      }
     });
   });
 });

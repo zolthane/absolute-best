@@ -3,6 +3,10 @@ export interface Item {
   title: string;
   score: number;
   voterCount: number;
+  // Insertion order, standing in for a real createdAt/id ordering once a
+  // database exists - used to break "most-voted" ties deterministically
+  // when several items share a grid cell (product spec Q3b: oldest wins).
+  order: number;
 }
 
 const ITEM_COUNT = 200;
@@ -48,6 +52,7 @@ function generateMockItems(): Item[] {
       title: `Sample Film ${String(index + 1).padStart(3, "0")}`,
       score,
       voterCount,
+      order: index,
     };
   });
 }
