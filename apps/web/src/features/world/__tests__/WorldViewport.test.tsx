@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
+import type { Item } from "../../../data/mockItems";
 import { useCameraStore } from "../cameraStore";
 import { WorldViewport } from "../WorldViewport";
 
@@ -96,5 +97,46 @@ describe("WorldViewport", () => {
     fireEvent.pointerMove(viewport, { pointerId: 2, clientX: 700 });
 
     expect(useCameraStore.getState().camera.zoom).toBeGreaterThan(4);
+  });
+
+  describe("items", () => {
+    it("positions a dot at the screen location of its score", () => {
+      const items: Item[] = [{ id: "1", title: "Solo", score: 20, voterCount: 100 }];
+      render(<WorldViewport items={items} />);
+
+      // camera is { center: 0, zoom: 4 }, viewportWidth 1000: worldToScreen(20) = 20*4 + 500 = 580.
+      expect(screen.getByTestId("item-dot")).toHaveStyle({ left: "580px" });
+    });
+
+    it("positions the single most-voted item at the top of its headroom", () => {
+      const items: Item[] = [{ id: "1", title: "Solo", score: 0, voterCount: 100 }];
+      render(<WorldViewport items={items} />);
+
+      const axisTopPx = 0.8 * window.innerHeight;
+      const maxDotHeightAboveAxis = axisTopPx * 0.9;
+      const expectedScreenY = axisTopPx - maxDotHeightAboveAxis;
+
+      const actualScreenY = Number.parseFloat(screen.getByTestId("item-dot").style.top);
+      expect(actualScreenY).toBeCloseTo(expectedScreenY, 9);
+    });
+
+    it("does not crash or misplace an item with zero voters", () => {
+      const items: Item[] = [{ id: "1", title: "Unvoted", score: 0, voterCount: 0 }];
+      render(<WorldViewport items={items} />);
+
+      const dot = screen.getByTestId("item-dot");
+      const top = Number.parseFloat(dot.style.top);
+      expect(Number.isFinite(top)).toBe(true);
+    });
+
+    it("only renders items within the visible (buffered) range", () => {
+      const items: Item[] = [
+        { id: "near", title: "Near", score: 0, voterCount: 10 },
+        { id: "far", title: "Far", score: 1_000_000, voterCount: 10 },
+      ];
+      render(<WorldViewport items={items} />);
+
+      expect(screen.getAllByTestId("item-dot")).toHaveLength(1);
+    });
   });
 });
