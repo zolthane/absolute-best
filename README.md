@@ -44,6 +44,7 @@ Day to day:
 | Command | What it does |
 | --- | --- |
 | `npm run dev` | Starts the app at `http://localhost:5173` with live reload |
+| `npm run dev:phone --workspace=apps/web` | Also exposes it on your local network, so you can test on a phone at the "Network" address it prints |
 | `npm test` | Runs every test, in every workspace |
 | `npm run typecheck` | Checks the TypeScript types, without building |
 | `npm run lint` | Checks code style and common mistakes |

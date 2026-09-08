@@ -39,6 +39,42 @@ describe("WorldViewport", () => {
     expect(useCameraStore.getState().camera.center).toBeCloseTo(10, 9);
   });
 
+  it("does not touch the camera store while a pan gesture is still in progress", () => {
+    // This is the fix for reported panning lag: touching the store on every
+    // pointermove forced a full React re-render per pixel of movement.
+    render(<WorldViewport />);
+    const viewport = screen.getByTestId("world-viewport");
+    const before = useCameraStore.getState().camera;
+
+    fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 500 });
+    fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 300 });
+
+    expect(useCameraStore.getState().camera).toEqual(before);
+  });
+
+  it("previews an in-progress pan with a CSS transform instead", () => {
+    render(<WorldViewport />);
+    const viewport = screen.getByTestId("world-viewport");
+
+    fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 500 });
+    fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 460 });
+
+    expect(screen.getByTestId("world-content")).toHaveStyle({
+      transform: "translateX(-40px)",
+    });
+  });
+
+  it("clears the preview transform once the gesture is committed", () => {
+    render(<WorldViewport />);
+    const viewport = screen.getByTestId("world-viewport");
+
+    fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 500 });
+    fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 460 });
+    fireEvent.pointerUp(viewport, { pointerId: 1, clientX: 460 });
+
+    expect(screen.getByTestId("world-content")).toHaveStyle({ transform: "none" });
+  });
+
   it("ignores a pointermove for a pointer that never went down (hover, not drag)", () => {
     render(<WorldViewport />);
     const viewport = screen.getByTestId("world-viewport");
