@@ -1,6 +1,14 @@
-import { computeNiceTicks, screenToWorld, worldToScreen } from "@teeter/shared";
-import { useEffect, useRef } from "react";
+import {
+  computeNiceTicks,
+  filterByVisibleRange,
+  logScale,
+  screenToWorld,
+  worldToScreen,
+} from "@teeter/shared";
+import { useEffect, useRef, useState } from "react";
+import { type Item, mockItems } from "../../data/mockItems";
 import { useCameraStore } from "./cameraStore";
+import { ItemDot } from "./ItemDot";
 
 interface Point {
   x: number;
@@ -27,9 +35,22 @@ const TICK_TARGET_COUNT = 12;
 // into view before the gesture commits and a fresh set is computed.
 const PAN_BUFFER_FACTOR = 2;
 
-export function WorldViewport() {
+// How many voters the single most-voted item on screen would need before
+// its dot reaches the very top of its headroom. Chosen per render from the
+// actual data instead, so this is only the floor for an otherwise-empty map.
+const MIN_VOTER_DOMAIN_MAX = 10;
+
+interface WorldViewportProps {
+  // Overridable so tests can render a small, known set of items instead of
+  // the real ~200-item mock data set - the mock data's own exact positions
+  // are an implementation detail this component should not be coupled to.
+  items?: Item[];
+}
+
+export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   const camera = useCameraStore((state) => state.camera);
   const viewportWidth = useCameraStore((state) => state.viewportWidth);
+  const [viewportHeight, setViewportHeight] = useState(() => window.innerHeight);
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const worldContentRef = useRef<HTMLDivElement>(null);
@@ -37,11 +58,14 @@ export function WorldViewport() {
   const panGestureStartX = useRef<number | null>(null);
   const pinchStartDistance = useRef<number | null>(null);
 
-  // The viewport is assumed to fill the browser window horizontally (see
-  // App.tsx), so window width doubles as viewport width - this sidesteps
+  // The viewport is assumed to fill the browser window (see App.tsx), so
+  // window dimensions double as viewport dimensions - this sidesteps
   // getBoundingClientRect, which jsdom cannot measure in component tests.
   useEffect(() => {
-    const handleResize = () => useCameraStore.getState().setViewportWidth(window.innerWidth);
+    const handleResize = () => {
+      useCameraStore.getState().setViewportWidth(window.innerWidth);
+      setViewportHeight(window.innerHeight);
+    };
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
@@ -162,6 +186,18 @@ export function WorldViewport() {
   );
   const fulcrumScreenX = worldToScreen(0, camera, viewportWidth);
 
+  const visibleItems = filterByVisibleRange(
+    items,
+    visibleMinWorld - bufferWorldWidth,
+    visibleMaxWorld + bufferWorldWidth,
+  );
+
+  const axisTopPx = (AXIS_TOP_PERCENT / 100) * viewportHeight;
+  // 90% of the headroom above the line, leaving a small margin so the
+  // single most-voted item never touches the very top edge of the screen.
+  const maxDotHeightAboveAxis = axisTopPx * 0.9;
+  const maxVoterCount = Math.max(MIN_VOTER_DOMAIN_MAX, ...items.map((item) => item.voterCount));
+
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: keyboard access to the map is tracked as Stage 1 work (docs/05-supporting-features.md, decision S6), not built yet.
     <div
@@ -212,6 +248,16 @@ export function WorldViewport() {
             <div className="h-2 w-px bg-neutral-400" />
             <span className="mt-1 font-semibold text-[10px] text-neutral-700">{value}</span>
           </div>
+        ))}
+
+        {visibleItems.map((item) => (
+          <ItemDot
+            key={item.id}
+            screenX={worldToScreen(item.score, camera, viewportWidth)}
+            screenY={
+              axisTopPx - logScale(item.voterCount, 1, maxVoterCount, 0, maxDotHeightAboveAxis)
+            }
+          />
         ))}
       </div>
     </div>
