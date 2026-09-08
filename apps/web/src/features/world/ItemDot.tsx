@@ -45,7 +45,11 @@ export function ItemDot({
       {count === 1 && (
         <span
           data-testid="item-label"
-          className="-translate-x-1/2 absolute whitespace-nowrap text-[10px] text-neutral-700"
+          // A solid backdrop and a z-index above the plain dots: two lone
+          // items with close voter counts can sit only a few pixels apart
+          // vertically, and without this, a nearby dot bled into the text
+          // (or the text bled into it) and made both hard to read.
+          className="-translate-x-1/2 absolute z-10 whitespace-nowrap rounded-sm bg-white/90 px-0.5 text-[10px] text-neutral-700"
           style={{ left: screenX, top: screenY + sizePx / 2 + 4 }}
         >
           {title}
