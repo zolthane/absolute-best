@@ -411,3 +411,114 @@ here so it is not lost:
 ```
 (write anything you want changed here)
 ```
+
+---
+
+## 9. Weight and balance — making the name mean something
+
+*Added 2026-09-08, after the rename to **Teeter — Tip the scales.** Approval above is not
+reopened; these are proposals, decisions W1–W3 below.*
+
+**The principle that decides all of this:** motion on a data map should **encode
+information, not decorate**. Anything that merely looks nice costs performance, ages badly,
+and slowly makes the map harder to read. Everything recommended below carries real meaning;
+everything rejected does not.
+
+### 9.1 ✅ The zero point becomes a fulcrum
+
+Draw **0** as a small triangle sitting under the axis — the pivot of a seesaw — instead of a
+plain tick mark.
+
+```
+        ────────────────────┬────────────────────
+                            ▲
+                            0
+```
+
+Static, costs nothing, never moves, and the whole metaphor becomes legible without a single
+frame of animation. Roughly **15 minutes**, in batch 1.
+
+### 9.2 ⭐ Items have weight when they move
+
+**The strongest idea, and the one you were reaching for.**
+
+When an item moves to a new position it does not glide at a constant speed. It moves like a
+weight on a spring: accelerating, slightly overshooting, settling. **How much it overshoots
+depends on how many people have voted on it.**
+
+| Item | Voters | What a +10 vote looks like |
+| --- | --- | --- |
+| Barely known | 3 | Lurches across the screen, swings past, wobbles into place |
+| Well established | 50,000 | Barely shifts. A twitch |
+
+**Why this is more than an effect:** it makes the additive model *felt* rather than
+explained. The business plan spends three paragraphs arguing that sums beat averages and
+that participation is the hidden story. This teaches the same thing in half a second,
+wordlessly — your vote throws an obscure item across the world, and moves a famous one
+almost not at all. That is the product's whole thesis, delivered as a physical sensation.
+
+It also fits the name exactly: things with weight, tipping and settling.
+
+**Cost:** about an hour. It is an easing function, not a physics engine — a pure function of
+(distance, voter count) → position over time, which means it is unit-testable like all the
+other maths. Only items that are actually moving animate, so the cost is near zero when the
+map is still.
+
+**Where:** batch 7 (voting) and batch 10 (the living world).
+
+> **Accessibility caveat, and it is not optional.** Springy motion causes real discomfort
+> for people with vestibular disorders. The browser reports `prefers-reduced-motion` when
+> someone has asked their system for less animation — when it is set, items must move
+> directly and calmly to their new position. This is part of the work, not an extra.
+
+### 9.3 🤔 The line sags under weight — tempting, but later
+
+A tightrope bows downward where the load is heaviest: the axis itself dips slightly beneath
+regions holding many high-vote items.
+
+Genuinely beautiful, genuinely on-brand, and it does encode something real (where the
+world's attention is concentrated). But it means drawing a curved axis while items sit at
+their true straight-line positions — a small dishonesty between the line and the data — and
+it works against the clean white-and-black visual language.
+
+**Recommendation: not now.** Revisit at Stage 2 once the map is real enough to judge.
+
+### 9.4 ❌ Rejected — and why
+
+| Idea | Why not |
+| --- | --- |
+| **The whole axis rotates** with the global balance of votes | The most literal reading of "tipping", and the worst one. The axis *is* the coordinate system; rotating it either distorts every item's position or breaks the maths behind hit-testing. A map whose grid tilts is not a map |
+| **Ambient sway** — items always bobbing gently | A data display that never sits still is tiring to read and drains a phone battery for nothing. Batch 10 already makes the world move — driven by actual votes arriving, which is honest movement rather than decoration |
+| **Dot size by vote count** | The Y axis already encodes voter count. Saying it twice adds no information and collides with cell-density sizing (Q3c) |
+| **Items lean by score** | Duplicates the X position, and rotation is hard to read at small sizes |
+| **Drag resistance** — heavy items harder to pull | Charming, but it fights precision. The Submit button exists so people can aim exactly; adding friction undermines that |
+
+### 9.5 Free brand moments — no data risk
+
+- The **wordmark balances on a pivot** and rocks gently on the intro screen (batch 11)
+- The **loading indicator is a seesaw** finding its balance
+
+Both are pure presentation on non-data screens, so none of the objections above apply.
+
+---
+
+## 10. Decisions — weight and balance
+
+**W1 — Zero drawn as a fulcrum triangle?** *(9.1. Recommended: yes — free, static, and it
+makes the name legible.)*
+
+- [ ] Yes — batch 1
+- [ ] No
+
+**W2 — Weighted settle, with overshoot scaled by voter count?** *(9.2. Recommended: yes —
+it teaches the additive model wordlessly. Includes honouring `prefers-reduced-motion`.)*
+
+- [ ] Yes — batches 7 and 10
+- [ ] Yes, but keep it very subtle
+- [ ] No
+
+**W3 — The teetering wordmark and seesaw loader?** *(9.5. Recommended: yes, batch 11.)*
+
+- [ ] Yes
+- [ ] Just the wordmark
+- [ ] Neither

@@ -393,8 +393,7 @@ at score 0 with 0 voters.
 
 Deliberately late: it is presentation, and the risky parts came first.
 
-- [ ] Centred "Teeter" logo with the chosen tagline (business plan §14.4 — **not yet
-      decided**; leave the tagline out until it is)
+- [ ] Centred "Teeter" logo with the tagline *"Tip the scales."* (business plan §14.4)
 - [ ] Taglines from the business plan cross-fading below
 - [ ] Start button
 - [ ] Animated transition: the logo shrinks away as the axis draws itself in

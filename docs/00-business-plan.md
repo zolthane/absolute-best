@@ -499,10 +499,10 @@ Suggestions, in the same playful register as Teeter itself:
 | **Give it a shove.** | The bluntest and most game-like |
 | **Nothing is neutral.** | Slightly more serious, still not a mission statement |
 
-**Recommendation: "Tip the scales."** It plays on the name, describes the mechanic, and is
-a call to action rather than a description of the product.
+**SETTLED 2026-09-08: "Tip the scales."** It plays on the name, describes the mechanic, and
+is a call to action rather than a description of the product.
 
-**Undecided.** The documentation carries no tagline until you pick one.
+> ### Teeter — *Tip the scales.*
 
 #### Domain availability, checked 2026-09-08
 
