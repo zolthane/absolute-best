@@ -21,10 +21,11 @@ const AXIS_TOP_PERCENT = 80;
 // Will likely need retuning once real items compete for the same space.
 const TICK_TARGET_COUNT = 12;
 
-// Ticks are rendered for a wider range than is actually visible, so that a
-// live pan preview (see the pointer handlers below) never drags a visible
-// gap into view before the gesture commits and a fresh set is computed.
-const PAN_BUFFER_FACTOR = 0.5;
+// Ticks (and the axis line itself) are rendered for a much wider range than
+// is actually visible - roughly 2 extra screens each side - so that a live
+// pan preview (see the pointer handlers below) never drags a visible gap
+// into view before the gesture commits and a fresh set is computed.
+const PAN_BUFFER_FACTOR = 2;
 
 export function WorldViewport() {
   const camera = useCameraStore((state) => state.camera);
@@ -155,6 +156,9 @@ export function WorldViewport() {
     visibleMinWorld - bufferWorldWidth,
     visibleMaxWorld + bufferWorldWidth,
     TICK_TARGET_COUNT * (1 + 2 * PAN_BUFFER_FACTOR),
+    // A score is always a whole number (product spec, rule R2) - a label
+    // like "48.5" would not correspond to anything that could actually exist.
+    1,
   );
   const fulcrumScreenX = worldToScreen(0, camera, viewportWidth);
 
@@ -173,8 +177,16 @@ export function WorldViewport() {
       <div ref={worldContentRef} data-testid="world-content" className="absolute inset-0">
         <div
           data-testid="world-axis"
-          className="absolute left-0 h-0.5 w-full bg-black"
-          style={{ top: `${AXIS_TOP_PERCENT}%` }}
+          className="absolute h-0.5 bg-black"
+          style={{
+            // Deliberately wider than the viewport, by the same buffer as
+            // the ticks: a bar exactly viewport-wide, translated during a
+            // drag, would pull its trailing edge away from the screen edge
+            // and leave a visible gap - this has no such edge to reveal.
+            left: -viewportWidth * PAN_BUFFER_FACTOR,
+            width: viewportWidth * (1 + 2 * PAN_BUFFER_FACTOR),
+            top: `${AXIS_TOP_PERCENT}%`,
+          }}
         />
 
         <div

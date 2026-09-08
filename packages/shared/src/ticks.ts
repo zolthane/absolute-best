@@ -2,13 +2,18 @@
  * Picks a set of evenly-spaced, round-number tick values to label an axis
  * covering [min, max] - the classic "nice numbers" approach used by most
  * charting libraries, so labels read as 20, 50, 100 rather than 19, 51, 103.
+ *
+ * `minStep` floors the spacing between ticks - pass 1 for an axis whose
+ * values can only ever be whole numbers (a vote score, a count of people),
+ * so zooming in never labels a point that could not possibly exist, such
+ * as "48.5". Defaults to 0 (no floor), since not every axis is integer-only.
  */
-export function computeNiceTicks(min: number, max: number, targetCount = 8): number[] {
+export function computeNiceTicks(min: number, max: number, targetCount = 8, minStep = 0): number[] {
   if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min || targetCount <= 0) {
     return [];
   }
 
-  const step = niceStep((max - min) / targetCount);
+  const step = Math.max(niceStep((max - min) / targetCount), minStep);
   if (step <= 0) {
     return [];
   }

@@ -45,4 +45,31 @@ describe("computeNiceTicks", () => {
     expect(computeNiceTicks(Number.NaN, 10)).toEqual([]);
     expect(computeNiceTicks(0, Number.POSITIVE_INFINITY)).toEqual([]);
   });
+
+  describe("minStep", () => {
+    it("produces fractional ticks by default when zoomed in close", () => {
+      const ticks = computeNiceTicks(47, 49, 8);
+      expect(ticks.some((value) => !Number.isInteger(value))).toBe(true);
+    });
+
+    it("never produces a fractional tick when minStep is 1, however far zoomed in", () => {
+      // A vote score is always a whole number (R2), so a label like "48.5"
+      // does not correspond to anything that could actually exist.
+      const ticks = computeNiceTicks(47, 49, 8, 1);
+      for (const tick of ticks) {
+        expect(Number.isInteger(tick)).toBe(true);
+      }
+    });
+
+    it("falls back to whole numbers rather than fabricating extra ticks to hit the target count", () => {
+      const ticks = computeNiceTicks(10, 13, 8, 1);
+      expect(ticks).toEqual([10, 11, 12, 13]);
+    });
+
+    it("has no effect once the natural step is already at or above minStep", () => {
+      const withMinStep = computeNiceTicks(0, 1000, 8, 1);
+      const withoutMinStep = computeNiceTicks(0, 1000, 8);
+      expect(withMinStep).toEqual(withoutMinStep);
+    });
+  });
 });
