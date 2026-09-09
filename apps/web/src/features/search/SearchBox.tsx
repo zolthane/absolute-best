@@ -1,26 +1,30 @@
 import { computeFocusCamera, searchItems } from "@teeter/shared";
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
-import { type Item, mockItems } from "../../data/mockItems";
-import { effectiveItem, useVoteStore } from "../vote/voteStore";
 import { computeFocusCameraY, useCameraStore } from "../world/cameraStore";
+import { getFullEffectiveItems } from "../world/effectiveItems";
 import { useFocusStore } from "../world/focusStore";
 
 export function SearchBox() {
   const [query, setQuery] = useState("");
-  const votes = useVoteStore((state) => state.votes);
-  const settlingScores = useVoteStore((state) => state.settlingScores);
 
-  // Search reads the same effective (vote-applied) data WorldViewport does -
-  // titles never change from voting, but the score/voter count used to aim
-  // the camera at a result does.
-  const effectiveItems = mockItems.map((mockItem) =>
-    effectiveItem(mockItem, votes, settlingScores),
-  );
-  const results = searchItems(effectiveItems, query);
+  // Recomputed on every render (cheap - see getFullEffectiveItems), so a
+  // vote or a newly-added entry is reflected the next time this renders,
+  // same as WorldViewport's own effectiveItems.
+  const results = searchItems(getFullEffectiveItems(), query);
   const isSearching = query.trim() !== "";
 
-  const handleSelect = (item: Item) => {
+  const handleSelect = (itemId: string) => {
+    // Recomputed fresh here rather than reused from the results above: the
+    // background living-world simulation (batch 10) can move an item's
+    // score between when the dropdown was rendered and when it's clicked,
+    // and the camera should aim at where the item actually is now, not
+    // wherever it was a render or two ago.
+    const effectiveItems = getFullEffectiveItems();
+    const item = effectiveItems.find((candidate) => candidate.id === itemId);
+    if (!item) {
+      return;
+    }
     const { cameraY, viewportWidth } = useCameraStore.getState();
     const targetCamera = computeFocusCamera(item, effectiveItems, viewportWidth);
     const targetCameraY = computeFocusCameraY(item, cameraY.zoomY);
@@ -50,7 +54,7 @@ export function SearchBox() {
               <button
                 key={item.id}
                 type="button"
-                onClick={() => handleSelect(item)}
+                onClick={() => handleSelect(item.id)}
                 className="block w-full px-2.5 py-1.5 text-left text-sm hover:bg-muted"
               >
                 {item.title}
