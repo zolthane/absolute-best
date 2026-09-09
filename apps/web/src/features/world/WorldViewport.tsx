@@ -84,6 +84,11 @@ const DOT_MIN_SIZE_PX = 8;
 const DOT_MAX_SIZE_PX = 22;
 const DOT_MIN_OPACITY = 0.45;
 
+// The one dot on the map that can actually be grabbed to vote gets a floor
+// on its size, bigger than even the largest density-based DOT_MAX_SIZE_PX -
+// easier to hit with a mouse, and especially with a finger.
+const FOCUSED_VOTABLE_DOT_MIN_PX = 28;
+
 // A rough estimate of a label's on-screen box, used only to decide whether
 // two labels would collide (labelDeclutter.ts) - not exact text
 // measurement, the same fixed-estimate approach ItemCard already uses for
@@ -94,6 +99,17 @@ const LABEL_HEIGHT_PX = 14;
 
 // Rule R4: a vote is always the full -10..10 range, centred on the item.
 const MAX_VOTE_MAGNITUDE = 10;
+
+// Added to a crowded cell's (count > 1) label priority, per extra item past
+// the first - large enough to always beat the highest realistic voterCount,
+// so an exact score-and-voter-count tie (which can never be split by any
+// zoom - see grid.ts) reliably wins its label over any single lone item
+// nearby, rather than losing to whichever one happens to have more voters.
+// Without this, the tie clusters that are all but guaranteed to occur among
+// low-voter-count items (a single vote has only 21 possible scores) almost
+// always lost the label-collision fight, since their voterCount was the
+// lowest in the whole dataset.
+const CROWDED_CELL_LABEL_PRIORITY_BONUS = 1_000_000;
 
 interface GridItem extends GridCellAssignment {
   item: Item;
@@ -152,6 +168,11 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   // gesture never fight over the same bookkeeping.
   const votingPointerId = useRef<number | null>(null);
   const voteDragStartClientX = useRef<number | null>(null);
+  // Whether the current single-pointer gesture has moved past the drag
+  // threshold - used to tell a genuine tap on empty space (which should
+  // un-focus) apart from a pan that happened to end over empty space (which
+  // should not). Reset at the start of every new single-pointer gesture.
+  const backgroundWasDraggedRef = useRef(false);
   // The zoom the grid last used - deliberately separate from the camera's
   // own zoom, so nextGridZoom can hold it still against noise. See
   // nextGridZoom's doc comment for why. One per axis, since X and Y now
@@ -321,6 +342,7 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
       // breaking "click an item to focus it" for every click, moved or not.
       panGestureStart.current = { x: event.clientX, y: event.clientY };
       pinchStartDistance.current = null;
+      backgroundWasDraggedRef.current = false;
     } else if (activePointers.current.size === 2) {
       const [a, b] = [...activePointers.current.values()];
       if (a && b) {
@@ -367,6 +389,7 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
       // so a purely vertical drag counts too, not just a horizontal one.
       if (distanceBetween({ x: rawDeltaX, y: rawDeltaY }, { x: 0, y: 0 }) >= DRAG_THRESHOLD_PX) {
         event.currentTarget.setPointerCapture?.(event.pointerId);
+        backgroundWasDraggedRef.current = true;
       }
       // Clamped the same way the eventual commit will be, so the preview
       // stops at the pan boundary in real time instead of rubber-banding
@@ -514,7 +537,15 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   // The focused item's card stays visible even when it isn't hovered
   // (product spec section 3: it "shows its name and current score") -
   // hovering something else still takes priority.
-  const cardTargetId = hoveredItemId ?? focusedItemId;
+  // While a vote is being dragged or is pending Submit, its card must stay
+  // put regardless of what the pointer happens to be hovering - the dot
+  // itself deliberately doesn't move during a drag (see the drag handler's
+  // comment), so the cursor is often no longer over it, and can easily end
+  // up over a different item's dot instead. Without this, the Submit button
+  // would silently vanish (replaced by whatever's incidentally hovered)
+  // depending on exactly where the pointer was released.
+  const votingItemId = voteDrag?.itemId ?? pendingVote?.itemId ?? null;
+  const cardTargetId = votingItemId ?? hoveredItemId ?? focusedItemId;
   const cardCell = cells.find((cell) => cell.representative.item.id === cardTargetId);
 
   const cellRenderData = cells.map(({ representative, count }) => ({
@@ -538,8 +569,12 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
       screenX: representative.screenX,
       screenY: representative.screenY,
       dotSizePx: sizePx,
-      // A more-established item keeps its label when two would collide.
-      priority: representative.item.voterCount,
+      // A more-established item keeps its label when two would collide -
+      // except a crowded (tied) cell, which always wins instead: see
+      // CROWDED_CELL_LABEL_PRIORITY_BONUS's comment for why.
+      priority:
+        representative.item.voterCount +
+        (count > 1 ? count * CROWDED_CELL_LABEL_PRIORITY_BONUS : 0),
       labelWidthPx:
         labelText(representative, count).length * LABEL_CHAR_WIDTH_PX + LABEL_TEXT_PADDING_PX,
       labelHeightPx: LABEL_HEIGHT_PX,
@@ -571,9 +606,15 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   // Clicking empty space un-focuses whatever was focused - checked by
   // identity rather than e.g. stopping propagation on the dot, so a click
   // that bubbles up from a dot (or its label) is correctly told apart from
-  // one that landed directly on the background.
+  // one that landed directly on the background. Bound to world-content (see
+  // its ref below), not the outer viewport div: world-content is an
+  // `inset-0` layer stacked on top of everything else in the viewport, so it
+  // - not the outer div - is the real click target for every point of empty
+  // space; the outer div's onClick was correctly-written but never fired.
+  // Also requires the gesture not to have been a drag: a pan that happens to
+  // end over empty space is not a click on it (backgroundWasDraggedRef).
   const handleBackgroundClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (event.target !== event.currentTarget) {
+    if (event.target !== event.currentTarget || backgroundWasDraggedRef.current) {
       return;
     }
     setFocusedItemId(null);
@@ -608,7 +649,6 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
 
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: keyboard access to the map is tracked as Stage 1 work (docs/05-supporting-features.md, decision S6), not built yet.
-    // biome-ignore lint/a11y/useKeyWithClickEvents: same as above - S6 covers un-focusing too.
     <div
       ref={viewportRef}
       data-testid="world-viewport"
@@ -618,7 +658,6 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
       onDragStart={(event) => event.preventDefault()}
-      onClick={handleBackgroundClick}
     >
       {/* The ruler: fixed screen positions, unaffected by worldContentRef's
           live-drag transform, so panning never drags these away - only the
@@ -682,26 +721,42 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
         );
       })}
 
-      <div ref={worldContentRef} data-testid="world-content" className="absolute inset-0">
-        {cellRenderData.map(({ representative, count, sizePx, opacity }) => (
-          <ItemDot
-            key={`${representative.cellCol}:${representative.cellRow}`}
-            itemId={representative.item.id}
-            screenX={representative.screenX}
-            screenY={representative.screenY}
-            title={labelText(representative, count)}
-            showLabel={shownLabelIds.has(representative.item.id)}
-            sizePx={sizePx}
-            opacity={opacity}
-            isVotable={isItemVotable(isLoggedIn, votes[representative.item.id] !== undefined)}
-            isFocused={representative.item.id === focusedItemId}
-            onHoverStart={() => setHoveredItemId(representative.item.id)}
-            onHoverEnd={() =>
-              setHoveredItemId((current) => (current === representative.item.id ? null : current))
-            }
-            onSelect={() => handleDotSelect(representative.item)}
-          />
-        ))}
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: same as the outer viewport div - see its comment. */}
+      {/* biome-ignore lint/a11y/useKeyWithClickEvents: un-focusing by clicking empty space; S6 covers keyboard access. */}
+      <div
+        ref={worldContentRef}
+        data-testid="world-content"
+        className="absolute inset-0"
+        onClick={handleBackgroundClick}
+      >
+        {cellRenderData.map(({ representative, count, sizePx, opacity }) => {
+          const isVotable = isItemVotable(isLoggedIn, votes[representative.item.id] !== undefined);
+          const isFocused = representative.item.id === focusedItemId;
+          return (
+            <ItemDot
+              key={`${representative.cellCol}:${representative.cellRow}`}
+              itemId={representative.item.id}
+              screenX={representative.screenX}
+              screenY={representative.screenY}
+              title={labelText(representative, count)}
+              showLabel={shownLabelIds.has(representative.item.id)}
+              // Bigger and easier to grab while it's the one thing on the
+              // whole map that's actually draggable - reported as "sometimes
+              // hard to click on and drag".
+              sizePx={
+                isFocused && isVotable ? Math.max(sizePx, FOCUSED_VOTABLE_DOT_MIN_PX) : sizePx
+              }
+              opacity={opacity}
+              isVotable={isVotable}
+              isFocused={isFocused}
+              onHoverStart={() => setHoveredItemId(representative.item.id)}
+              onHoverEnd={() =>
+                setHoveredItemId((current) => (current === representative.item.id ? null : current))
+              }
+              onSelect={() => handleDotSelect(representative.item)}
+            />
+          );
+        })}
 
         {cardCell && (
           <ItemCard
