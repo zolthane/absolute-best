@@ -41,9 +41,14 @@ export function NewEntryDialog() {
       ...mockItems,
       ...Object.values(useEntriesStore.getState().itemsByIdentifier),
     ].map((candidate) => effectiveItem(candidate, votes, settlingScores));
+    // item itself is the raw, never-voted-on record entriesStore holds - for
+    // a duplicate link that's already been voted on since it was added,
+    // using it directly would aim the camera at its stale score-0 starting
+    // position instead of where it actually sits now.
+    const effectiveTarget = effectiveItem(item, votes, settlingScores);
     const { cameraY, viewportWidth } = useCameraStore.getState();
-    const targetCamera = computeFocusCamera(item, allItems, viewportWidth);
-    const targetCameraY = computeFocusCameraY(item, cameraY.zoomY);
+    const targetCamera = computeFocusCamera(effectiveTarget, allItems, viewportWidth);
+    const targetCameraY = computeFocusCameraY(effectiveTarget, cameraY.zoomY);
     useCameraStore.getState().animateTo(targetCamera, targetCameraY);
     useFocusStore.getState().setFocusedItemId(item.id);
 
