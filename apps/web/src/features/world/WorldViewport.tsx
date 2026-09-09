@@ -22,6 +22,7 @@ import { useEffect, useRef, useState } from "react";
 import { type Item, mockItems } from "../../data/mockItems";
 import { useAuthStore } from "../auth/authStore";
 import { isItemVotable } from "../auth/voteState";
+import { useEntriesStore } from "../entries/entriesStore";
 import { effectiveItem, useVoteStore } from "../vote/voteStore";
 import { computeFocusCameraY, currentViewportSize, useCameraStore } from "./cameraStore";
 import { useFocusStore } from "./focusStore";
@@ -162,6 +163,7 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   const isLoggedIn = useAuthStore((state) => state.username !== null);
   const votes = useVoteStore((state) => state.votes);
   const settlingScores = useVoteStore((state) => state.settlingScores);
+  const entriesByIdentifier = useEntriesStore((state) => state.itemsByIdentifier);
   // Just the id, not the whole GridItem: that object's screenX/screenY would
   // go stale if the camera moves while hovering (e.g. zooming with the wheel
   // without moving the mouse) - looking it up fresh from `cells` every
@@ -229,13 +231,20 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
     };
   }, []);
 
+  // Batch 9: entries added via "New entry" layer on top of whatever items
+  // were passed in - always, not just for the default mockItems set, so a
+  // test overriding `items` still sees the same map-wide behavior for them.
+  const addedItems = Object.values(entriesByIdentifier);
+
   // The item as it should actually be positioned/displayed: unchanged
   // unless a vote landed on it, in which case its score/voter count reflect
   // that (mid-settle-animation or final) rather than the raw generated
   // value. Computed once and used everywhere below instead of `items`
   // directly, so a cast vote is reflected consistently in positioning,
   // grid membership, and the card - not special-cased in each place.
-  const effectiveItems = items.map((item) => effectiveItem(item, votes, settlingScores));
+  const effectiveItems = [...items, ...addedItems].map((item) =>
+    effectiveItem(item, votes, settlingScores),
+  );
 
   const axisTopPx = (AXIS_TOP_PERCENT / 100) * viewportHeight;
   // The floor vertical zoom can never go below - see minZoomYForItems.

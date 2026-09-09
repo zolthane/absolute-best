@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { NewEntryDialog } from "../entries/NewEntryDialog";
 import { SearchBox } from "../search/SearchBox";
 import { AuthDialog } from "./AuthDialog";
 import { useAuthStore } from "./authStore";
@@ -50,6 +51,7 @@ export function TopBar() {
             <span data-testid="username" className="text-sm">
               {username}
             </span>
+            <NewEntryDialog />
             <Button variant="outline" onClick={logout}>
               Log out
             </Button>
