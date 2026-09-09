@@ -56,6 +56,17 @@ describe("sampleGrid", () => {
     expect(cells[0]?.count).toBe(3);
   });
 
+  it("returns every member of a crowded cell, ranked the same way the representative was chosen", () => {
+    const items: TestItem[] = [
+      { id: "a", voterCount: 10, order: 0, cellCol: 0, cellRow: 0 },
+      { id: "b", voterCount: 999, order: 1, cellCol: 0, cellRow: 0 },
+      { id: "c", voterCount: 5, order: 2, cellCol: 0, cellRow: 0 },
+    ];
+    const cells = sampleGrid(items, byVoterCountThenAge);
+    expect(cells[0]?.members.map((member) => member.id)).toEqual(["b", "a", "c"]);
+    expect(cells[0]?.representative).toBe(cells[0]?.members[0]);
+  });
+
   it("gives items in different cells their own separate representatives", () => {
     const items: TestItem[] = [
       { id: "a", voterCount: 10, order: 0, cellCol: 0, cellRow: 0 },

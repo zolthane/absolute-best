@@ -100,6 +100,14 @@ const LABEL_HEIGHT_PX = 14;
 // Rule R4: a vote is always the full -10..10 range, centred on the item.
 const MAX_VOTE_MAGNITUDE = 10;
 
+// On casting a vote, the vertical camera zooms out (if it needs to) so both
+// the item's old and new position - it moves up by one step of voterCount,
+// which the log scale can turn into a large jump for a low-voter item - stay
+// within this fraction of the viewport's height. Reported as the item simply
+// disappearing off-screen after voting, at a zoom level that made sense for
+// its position before the vote but not after.
+const VOTE_ZOOM_OUT_FRACTION = 0.5;
+
 // Added to a crowded cell's (count > 1) label priority, per extra item past
 // the first - large enough to always beat the highest realistic voterCount,
 // so an exact score-and-voter-count tie (which can never be split by any
@@ -534,6 +542,32 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
     };
   });
   const cells = sampleGrid(gridItems, compareGridItems);
+
+  // Normally the cell's own representative (compareGridItems' pick) is what
+  // gets drawn - but if the item the user has actually focused is merely
+  // one of this cell's other members (picked from the "sharing this spot"
+  // list - see the alternates block below), that one is shown/interactive
+  // instead. This is what makes an otherwise-unreachable tied member
+  // (an exact score-and-voter-count match, invisible to any zoom) something
+  // you can actually select, vote on, and see a dot move for.
+  const cellRenderData = cells.map((cell) => {
+    const representative =
+      cell.members.find((member) => member.item.id === focusedItemId) ?? cell.representative;
+    return {
+      representative,
+      members: cell.members,
+      count: cell.count,
+      sizePx: logScale(
+        cell.count,
+        1,
+        MAX_CELL_DENSITY_FOR_STYLING,
+        DOT_MIN_SIZE_PX,
+        DOT_MAX_SIZE_PX,
+      ),
+      opacity: logScale(cell.count, 1, MAX_CELL_DENSITY_FOR_STYLING, DOT_MIN_OPACITY, 1),
+    };
+  });
+
   // The focused item's card stays visible even when it isn't hovered
   // (product spec section 3: it "shows its name and current score") -
   // hovering something else still takes priority.
@@ -546,14 +580,7 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   // depending on exactly where the pointer was released.
   const votingItemId = voteDrag?.itemId ?? pendingVote?.itemId ?? null;
   const cardTargetId = votingItemId ?? hoveredItemId ?? focusedItemId;
-  const cardCell = cells.find((cell) => cell.representative.item.id === cardTargetId);
-
-  const cellRenderData = cells.map(({ representative, count }) => ({
-    representative,
-    count,
-    sizePx: logScale(count, 1, MAX_CELL_DENSITY_FOR_STYLING, DOT_MIN_SIZE_PX, DOT_MAX_SIZE_PX),
-    opacity: logScale(count, 1, MAX_CELL_DENSITY_FOR_STYLING, DOT_MIN_OPACITY, 1),
-  }));
+  const cardCell = cellRenderData.find((data) => data.representative.item.id === cardTargetId);
 
   // Every cell is a label candidate now, not just a lone item's - a crowded
   // cell shows its representative's name too ("Title +N"), so a group that
@@ -603,6 +630,17 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
     useCameraStore.getState().animateTo(targetCamera, targetCameraY);
   };
 
+  // Switches focus to a different member of the currently-shown crowded
+  // cell, picked from the card's "sharing this spot" list - see
+  // cellRenderData's comment for how that then becomes the shown/interactive
+  // dot in this cell instead.
+  const handleSelectAlternate = (itemId: string) => {
+    const item = effectiveItems.find((candidate) => candidate.id === itemId);
+    if (item) {
+      handleDotSelect(item);
+    }
+  };
+
   // Clicking empty space un-focuses whatever was focused - checked by
   // identity rather than e.g. stopping propagation on the dot, so a click
   // that bubbles up from a dot (or its label) is correctly told apart from
@@ -638,6 +676,28 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
         onSubmit: () => {
           const item = effectiveItems.find((candidate) => candidate.id === itemId);
           if (item) {
+            // Casting a vote moves the item up by one step of voterCount -
+            // on the log-scaled Y axis, that can be a large jump for a
+            // low-voter item (voterCount 1 to 2 doubles it) - so the camera
+            // zooms out first, just enough that neither its old nor new
+            // position falls outside the viewport, instead of leaving it to
+            // simply vanish off-screen once the vote lands.
+            // No minZoomY floor here on purpose - that floor is sized to fit
+            // the *whole* dataset, which is usually a far lower zoom than
+            // wherever the user is currently looking at one item up close;
+            // applying it here could zoom IN instead of out. This only ever
+            // zooms out, and only as far as actually needed.
+            const worldYBefore = Math.log10(Math.max(item.voterCount, 1));
+            const worldYAfter = Math.log10(Math.max(item.voterCount + 1, 1));
+            const spread = Math.abs(worldYAfter - worldYBefore);
+            const targetZoomY =
+              spread > 0
+                ? Math.min(cameraY.zoomY, (viewportHeight * VOTE_ZOOM_OUT_FRACTION) / spread)
+                : cameraY.zoomY;
+            useCameraStore.getState().animateTo(camera, {
+              centerY: (worldYBefore + worldYAfter) / 2,
+              zoomY: targetZoomY,
+            });
             useVoteStore.getState().castVote(itemId, item.score, item.voterCount, delta);
           }
           setPendingVote(null);
@@ -646,6 +706,12 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
     }
     return undefined;
   })();
+
+  const cardAlternates = cardCell
+    ? cardCell.members
+        .filter((member) => member.item.id !== cardCell.representative.item.id)
+        .map((member) => ({ id: member.item.id, title: member.item.title }))
+    : [];
 
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: keyboard access to the map is tracked as Stage 1 work (docs/05-supporting-features.md, decision S6), not built yet.
@@ -764,6 +830,8 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
             screenX={cardCell.representative.screenX}
             screenY={cardCell.representative.screenY}
             vote={cardVote}
+            alternates={cardAlternates}
+            onSelectAlternate={handleSelectAlternate}
           />
         )}
       </div>

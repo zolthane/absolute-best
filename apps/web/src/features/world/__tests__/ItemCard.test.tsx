@@ -28,6 +28,32 @@ describe("ItemCard", () => {
     expect(transform).not.toContain("-100%");
   });
 
+  describe("shared cell / alternates", () => {
+    it("shows nothing when the cell has no other members", () => {
+      render(<ItemCard item={item} screenX={500} screenY={400} alternates={[]} />);
+      expect(screen.queryByTestId("item-card-alternates")).not.toBeInTheDocument();
+    });
+
+    it("lists the cell's other members and lets you pick one", () => {
+      const onSelectAlternate = vi.fn();
+      render(
+        <ItemCard
+          item={item}
+          screenX={500}
+          screenY={400}
+          alternates={[
+            { id: "b", title: "Beta" },
+            { id: "c", title: "Gamma" },
+          ]}
+          onSelectAlternate={onSelectAlternate}
+        />,
+      );
+      expect(screen.getByTestId("item-card-alternates")).toHaveTextContent("2 more");
+      fireEvent.click(screen.getByRole("button", { name: "Beta" }));
+      expect(onSelectAlternate).toHaveBeenCalledWith("b");
+    });
+  });
+
   describe("vote (batch 7)", () => {
     it("shows no vote preview or Submit button when not voting", () => {
       render(<ItemCard item={item} screenX={500} screenY={400} />);

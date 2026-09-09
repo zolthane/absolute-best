@@ -319,6 +319,33 @@ describe("WorldViewport", () => {
     });
   });
 
+  describe("shared cell picker (batch 7 follow-up)", () => {
+    const items: Item[] = [
+      { id: "a", title: "Alpha", score: 2, voterCount: 100, order: 0, tags: [] },
+      { id: "b", title: "Beta", score: 3, voterCount: 100, order: 1, tags: [] },
+    ];
+
+    it("lets you pick a different member of a crowded cell, which then becomes the shown, interactive dot", () => {
+      render(<WorldViewport items={items} />);
+      // See "focuses the clicked item..." below for why this must be mocked.
+      const animateTo = vi
+        .spyOn(useCameraStore.getState(), "animateTo")
+        .mockImplementation(() => {});
+
+      fireEvent.click(screen.getByTestId("item-dot"));
+      expect(screen.getByTestId("item-card")).toHaveTextContent("Alpha");
+      expect(screen.getByTestId("item-card-alternates")).toHaveTextContent("Beta");
+
+      fireEvent.click(screen.getByRole("button", { name: "Beta" }));
+
+      expect(screen.getByTestId("item-card")).toHaveTextContent("Beta");
+      expect(screen.getByTestId("item-card-alternates")).toHaveTextContent("Alpha");
+      expect(screen.getByTestId("item-dot")).toHaveAttribute("data-item-id", "b");
+
+      animateTo.mockRestore();
+    });
+  });
+
   describe("item cards and focusing (batch 5)", () => {
     const items: Item[] = [
       {
@@ -630,6 +657,44 @@ describe("WorldViewport", () => {
       expect(useVoteStore.getState().votes.a).toBe(10);
       expect(screen.queryByRole("button", { name: /submit/i })).not.toBeInTheDocument();
       expect(screen.getByTestId("item-dot")).not.toHaveClass("bg-blue-600");
+    });
+
+    it("zooms the vertical camera out on Submit for a low-voter item, so it doesn't jump off-screen", () => {
+      // Reported bug: voting moves an item up by one step of voterCount,
+      // which the log-scaled Y axis can turn into a large jump for a
+      // low-voter item - a 1-voter item's position doubles just by going to
+      // 2 voters. Without this, the item could simply vanish off-screen the
+      // instant the vote landed.
+      useAuthStore.setState({ username: "Alice" });
+      const lowVoterItems: Item[] = [
+        { id: "a", title: "Alpha", score: 20, voterCount: 1, order: 0, tags: [] },
+      ];
+      render(<WorldViewport items={lowVoterItems} />);
+      fireEvent.click(screen.getByTestId("item-dot"));
+      const dot = screen.getByTestId("item-dot");
+
+      // Simulates having zoomed in close on this one item before voting -
+      // realistic, since voting requires focusing it first, and a lone,
+      // low-voter item is easy to zoom in close on.
+      act(() => {
+        useCameraStore.setState({ cameraY: { centerY: 0, zoomY: 5000 } });
+      });
+
+      fireEvent.pointerDown(dot, { pointerId: 1, clientX: 580 });
+      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 620 });
+      fireEvent.pointerUp(dot, { pointerId: 1, clientX: 620 });
+
+      const animateTo = vi.mocked(useCameraStore.getState().animateTo);
+      animateTo.mockClear();
+
+      fireEvent.click(screen.getByRole("button", { name: /submit vote: \+10/i }));
+
+      expect(animateTo).toHaveBeenCalledTimes(1);
+      const [, targetCameraY] = animateTo.mock.calls[0] ?? [];
+      // voterCount 1 -> 2 is a worldY jump of log10(2) ≈ 0.301, which at
+      // zoom 5000 is ~1505px - more than half the 800px viewport - so the
+      // camera must zoom out to exactly the zoom that keeps it within half.
+      expect(targetCameraY?.zoomY).toBeCloseTo((800 * 0.5) / Math.log10(2), 5);
     });
 
     it("starts fresh, not additive, when re-dragging before Submit", () => {

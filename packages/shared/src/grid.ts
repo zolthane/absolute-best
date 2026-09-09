@@ -39,35 +39,43 @@ export function nextGridZoom(previousGridZoom: number, rawZoom: number): number 
 export interface GridCell<T> {
   representative: T;
   count: number;
+  // Every item assigned to the cell, in the same order `compare` would rank
+  // them (representative first) - lets a crowded cell offer up the rest of
+  // its members instead of hiding them behind the one representative dot.
+  members: readonly T[];
 }
 
 /**
- * Groups items by their (cellCol, cellRow) assignment and keeps only one
- * representative per cell - the one `compare` ranks first - discarding the
- * rest. `compare(a, b)` should return a negative number when `a` should
- * represent the cell instead of `b`, matching Array.prototype.sort's
- * contract; on a tie (0), the earlier item in `items` wins.
+ * Groups items by their (cellCol, cellRow) assignment and ranks each cell's
+ * members by `compare` - the one it ranks first becomes the representative,
+ * the rest are still returned (see `members`), not discarded. `compare(a,
+ * b)` should return a negative number when `a` should represent the cell
+ * instead of `b`, matching Array.prototype.sort's contract; on a tie (0),
+ * the earlier item in `items` wins (Array.prototype.sort is stable).
  */
 export function sampleGrid<T extends GridCellAssignment>(
   items: readonly T[],
   compare: (a: T, b: T) => number,
 ): GridCell<T>[] {
-  const cells = new Map<string, GridCell<T>>();
+  const groups = new Map<string, T[]>();
 
   for (const item of items) {
     const key = `${item.cellCol}:${item.cellRow}`;
-    const existing = cells.get(key);
-    if (!existing) {
-      cells.set(key, { representative: item, count: 1 });
-      continue;
-    }
-    existing.count += 1;
-    if (compare(item, existing.representative) < 0) {
-      existing.representative = item;
+    const group = groups.get(key);
+    if (group) {
+      group.push(item);
+    } else {
+      groups.set(key, [item]);
     }
   }
 
-  return [...cells.values()];
+  return [...groups.values()].map((group) => {
+    const members = [...group].sort(compare);
+    // sort() never returns an empty array here - every group has at least
+    // the item that created it.
+    const representative = members[0] as T;
+    return { representative, count: members.length, members };
+  });
 }
 
 /**
