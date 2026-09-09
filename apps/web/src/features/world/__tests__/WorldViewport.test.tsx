@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Item } from "../../../data/mockItems";
 import { useAuthStore } from "../../auth/authStore";
+import { useEntriesStore } from "../../entries/entriesStore";
 import { useVoteStore } from "../../vote/voteStore";
 import { useCameraStore } from "../cameraStore";
 import { useFocusStore } from "../focusStore";
@@ -21,6 +22,7 @@ beforeEach(() => {
   useAuthStore.setState({ username: null });
   useVoteStore.setState({ votes: {}, settlingScores: {} });
   useFocusStore.setState({ focusedItemId: null });
+  useEntriesStore.setState({ itemsByIdentifier: {} });
 });
 
 describe("WorldViewport", () => {
@@ -825,6 +827,22 @@ describe("WorldViewport", () => {
       fireEvent.mouseEnter(screen.getAllByTestId("item-dot")[1] as HTMLElement);
 
       expect(screen.getByRole("button", { name: /submit vote: \+10/i })).toBeInTheDocument();
+    });
+  });
+
+  describe("added entries (batch 9)", () => {
+    it("renders an item added via the entries store alongside the given items", () => {
+      const items: Item[] = [
+        { id: "a", title: "Alpha", score: 0, voterCount: 10, order: 0, tags: [] },
+      ];
+      render(<WorldViewport items={items} />);
+      expect(screen.getAllByTestId("item-dot")).toHaveLength(1);
+
+      act(() => {
+        useEntriesStore.getState().addEntry("https://example.com/new-thing");
+      });
+
+      expect(screen.getAllByTestId("item-dot")).toHaveLength(2);
     });
   });
 });

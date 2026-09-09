@@ -25,6 +25,7 @@ export {
   worldPositionToCellIndex,
 } from "./grid";
 export { declutterLabels, type LabelCandidate } from "./labelDeclutter";
+export { type ResolvedLink, resolveLink } from "./linkResolver";
 export { findPassedItem, type PassableItem } from "./passedItem";
 export { logScale } from "./scale";
 export { type SearchableItem, searchItems } from "./searchItems";

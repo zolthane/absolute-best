@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { useAuthStore } from "../authStore";
 import { TopBar } from "../TopBar";
@@ -13,6 +13,16 @@ describe("TopBar", () => {
     render(<TopBar />);
     expect(screen.getByRole("button", { name: "Log in" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Register" })).toBeInTheDocument();
+  });
+
+  it("hides New entry when logged out, and shows it once logged in (batch 9)", () => {
+    render(<TopBar />);
+    expect(screen.queryByRole("button", { name: "New entry" })).not.toBeInTheDocument();
+
+    act(() => {
+      useAuthStore.setState({ username: "Alice" });
+    });
+    expect(screen.getByRole("button", { name: "New entry" })).toBeInTheDocument();
   });
 
   it("registering with a username logs in and shows the username", () => {
