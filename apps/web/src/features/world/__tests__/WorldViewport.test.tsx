@@ -616,6 +616,41 @@ describe("WorldViewport", () => {
       expect(useVoteStore.getState().hasVoted("a")).toBe(false);
     });
 
+    it("shows the item the drag would pass, live while still dragging (batch 7b)", () => {
+      useAuthStore.setState({ username: "Alice" });
+      const twoItems: Item[] = [
+        { id: "a", title: "Alpha", score: 20, voterCount: 100, order: 0, tags: [] },
+        { id: "b", title: "Beta", score: 25, voterCount: 500, order: 1, tags: [] },
+      ];
+      render(<WorldViewport items={twoItems} />);
+      fireEvent.click(screen.getAllByTestId("item-dot")[0] as HTMLElement);
+      const dot = screen.getAllByTestId("item-dot")[0] as HTMLElement;
+
+      // +5 lands exactly on Beta's score (25).
+      fireEvent.pointerDown(dot, { pointerId: 1, clientX: 580 });
+      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 640 });
+
+      expect(screen.getByTestId("vote-passed-item")).toHaveTextContent("Would pass: Beta");
+    });
+
+    it("shows nothing about passing when the drag doesn't reach another item", () => {
+      useAuthStore.setState({ username: "Alice" });
+      const twoItems: Item[] = [
+        { id: "a", title: "Alpha", score: 20, voterCount: 100, order: 0, tags: [] },
+        { id: "b", title: "Beta", score: 25, voterCount: 500, order: 1, tags: [] },
+      ];
+      render(<WorldViewport items={twoItems} />);
+      fireEvent.click(screen.getAllByTestId("item-dot")[0] as HTMLElement);
+      const dot = screen.getAllByTestId("item-dot")[0] as HTMLElement;
+
+      // +2 lands on 22 - short of Beta's 25.
+      fireEvent.pointerDown(dot, { pointerId: 1, clientX: 580 });
+      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 604 });
+
+      expect(screen.getByTestId("vote-preview")).toHaveTextContent("20 + 2 = 22");
+      expect(screen.queryByTestId("vote-passed-item")).not.toBeInTheDocument();
+    });
+
     it("clamps the drag to +-10 points, however far the pointer moves (rule R4)", () => {
       useAuthStore.setState({ username: "Alice" });
       render(<WorldViewport items={items} />);

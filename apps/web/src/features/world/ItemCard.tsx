@@ -18,6 +18,10 @@ interface ItemCardVote {
   // released, meaning the Submit button should be shown (rule R9).
   isPending: boolean;
   onSubmit: () => void;
+  // The single item this vote would overtake on the score axis, nearest in
+  // voter count to this one - see findPassedItem. Absent when the vote
+  // passes nothing (delta 0, or nothing lies between the old and new score).
+  passedItemTitle?: string;
 }
 
 interface ItemCardAlternate {
@@ -121,6 +125,11 @@ export function ItemCard({
             {item.score} {vote.delta >= 0 ? "+" : "-"} {Math.abs(vote.delta)} ={" "}
             {item.score + vote.delta}
           </p>
+          {vote.passedItemTitle && (
+            <p data-testid="vote-passed-item" className="text-muted-foreground text-xs">
+              Would pass: {vote.passedItemTitle}
+            </p>
+          )}
           {vote.isPending && (
             <>
               <Button

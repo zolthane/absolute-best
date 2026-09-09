@@ -3,6 +3,7 @@ import {
   computeFocusCamera,
   declutterLabels,
   filterByVisibleRange,
+  findPassedItem,
   type GridCellAssignment,
   type LabelCandidate,
   logScale,
@@ -690,14 +691,24 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
       return undefined;
     }
     const itemId = cardCell.representative.item.id;
+    const votingItem = effectiveItems.find((candidate) => candidate.id === itemId);
+    const passedItemTitle = (delta: number): string | undefined =>
+      votingItem ? findPassedItem(votingItem, delta, effectiveItems)?.title : undefined;
+
     if (voteDrag && voteDrag.itemId === itemId) {
-      return { delta: voteDrag.delta, isPending: false, onSubmit: () => {} };
+      return {
+        delta: voteDrag.delta,
+        isPending: false,
+        onSubmit: () => {},
+        passedItemTitle: passedItemTitle(voteDrag.delta),
+      };
     }
     if (pendingVote && pendingVote.itemId === itemId) {
       const delta = pendingVote.delta;
       return {
         delta,
         isPending: true,
+        passedItemTitle: passedItemTitle(delta),
         onSubmit: () => {
           const item = effectiveItems.find((candidate) => candidate.id === itemId);
           if (item) {
