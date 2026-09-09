@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Item } from "../../../data/mockItems";
 import { useAuthStore } from "../../auth/authStore";
 import { useEntriesStore } from "../../entries/entriesStore";
+import { useLivingWorldStore } from "../../livingWorld/livingWorldStore";
 import { useVoteStore } from "../../vote/voteStore";
 import { useCameraStore } from "../cameraStore";
 import { useFocusStore } from "../focusStore";
@@ -23,6 +24,7 @@ beforeEach(() => {
   useVoteStore.setState({ votes: {}, settlingScores: {} });
   useFocusStore.setState({ focusedItemId: null });
   useEntriesStore.setState({ itemsByIdentifier: {} });
+  useLivingWorldStore.setState({ driftScores: {}, driftVoterCounts: {}, settlingDrift: {} });
 });
 
 describe("WorldViewport", () => {
@@ -843,6 +845,62 @@ describe("WorldViewport", () => {
       });
 
       expect(screen.getAllByTestId("item-dot")).toHaveLength(2);
+    });
+  });
+
+  describe("living world simulation (batch 10)", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.spyOn(globalThis, "requestAnimationFrame").mockImplementation(() => 0);
+    });
+    afterEach(() => {
+      useLivingWorldStore.getState().stop();
+      vi.useRealTimers();
+      vi.restoreAllMocks();
+    });
+
+    it("starts the background simulation on mount and stops it on unmount", () => {
+      const items: Item[] = [
+        { id: "a", title: "Alpha", score: 0, voterCount: 10, order: 0, tags: [] },
+      ];
+      const { unmount } = render(<WorldViewport items={items} />);
+
+      act(() => {
+        vi.advanceTimersByTime(3500);
+      });
+      expect(Object.keys(useLivingWorldStore.getState().driftVoterCounts)).toHaveLength(1);
+
+      unmount();
+      const afterUnmount = useLivingWorldStore.getState().driftVoterCounts;
+      act(() => {
+        vi.advanceTimersByTime(60_000);
+      });
+      // A stopped timer that keeps running is the classic bug here - nothing
+      // should have changed after unmounting.
+      expect(useLivingWorldStore.getState().driftVoterCounts).toEqual(afterUnmount);
+    });
+
+    it("reflects existing living-world drift in what's actually rendered", () => {
+      // The simulation itself always draws its target from the real,
+      // global mockItems/entries pool (there's only ever one real map to
+      // simulate "someone else votes" on) - not from whatever `items` a
+      // particular WorldViewport render was given, which only matters for
+      // tests. So this sets drift state directly, to test that WorldViewport
+      // correctly reads and applies it, rather than depending on the random
+      // tick happening to land on this test's own item (see
+      // livingWorldStore.test.ts for the tick/selection behavior itself).
+      const items: Item[] = [
+        { id: "a", title: "Alpha", score: 0, voterCount: 10, order: 0, tags: [] },
+      ];
+      render(<WorldViewport items={items} />);
+      const leftBefore = screen.getByTestId("item-dot").style.left;
+
+      act(() => {
+        useLivingWorldStore.setState({ driftScores: { a: 5 }, driftVoterCounts: { a: 1 } });
+      });
+
+      const leftAfter = screen.getByTestId("item-dot").style.left;
+      expect(leftAfter).not.toBe(leftBefore);
     });
   });
 });

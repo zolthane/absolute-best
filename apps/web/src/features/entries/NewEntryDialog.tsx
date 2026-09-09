@@ -12,9 +12,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { mockItems } from "../../data/mockItems";
-import { effectiveItem, useVoteStore } from "../vote/voteStore";
 import { computeFocusCameraY, useCameraStore } from "../world/cameraStore";
+import { getFullEffectiveItems } from "../world/effectiveItems";
 import { useFocusStore } from "../world/focusStore";
 import { useEntriesStore } from "./entriesStore";
 
@@ -36,16 +35,13 @@ export function NewEntryDialog() {
     // silently doing nothing.
     const item = useEntriesStore.getState().addEntry(trimmedUrl);
 
-    const { votes, settlingScores } = useVoteStore.getState();
-    const allItems = [
-      ...mockItems,
-      ...Object.values(useEntriesStore.getState().itemsByIdentifier),
-    ].map((candidate) => effectiveItem(candidate, votes, settlingScores));
-    // item itself is the raw, never-voted-on record entriesStore holds - for
-    // a duplicate link that's already been voted on since it was added,
-    // using it directly would aim the camera at its stale score-0 starting
-    // position instead of where it actually sits now.
-    const effectiveTarget = effectiveItem(item, votes, settlingScores);
+    // item itself is the raw, un-voted-on, undrifted record entriesStore
+    // holds - for a duplicate link on an item that's since been voted on
+    // (or nudged by the batch 10 background simulation), using it directly
+    // would aim the camera at its stale starting position instead of where
+    // it actually sits now.
+    const allItems = getFullEffectiveItems();
+    const effectiveTarget = allItems.find((candidate) => candidate.id === item.id) ?? item;
     const { cameraY, viewportWidth } = useCameraStore.getState();
     const targetCamera = computeFocusCamera(effectiveTarget, allItems, viewportWidth);
     const targetCameraY = computeFocusCameraY(effectiveTarget, cameraY.zoomY);

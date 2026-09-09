@@ -23,6 +23,7 @@ import { type Item, mockItems } from "../../data/mockItems";
 import { useAuthStore } from "../auth/authStore";
 import { isItemVotable } from "../auth/voteState";
 import { useEntriesStore } from "../entries/entriesStore";
+import { applyDrift, useLivingWorldStore } from "../livingWorld/livingWorldStore";
 import { effectiveItem, useVoteStore } from "../vote/voteStore";
 import { computeFocusCameraY, currentViewportSize, useCameraStore } from "./cameraStore";
 import { useFocusStore } from "./focusStore";
@@ -164,6 +165,9 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   const votes = useVoteStore((state) => state.votes);
   const settlingScores = useVoteStore((state) => state.settlingScores);
   const entriesByIdentifier = useEntriesStore((state) => state.itemsByIdentifier);
+  const driftScores = useLivingWorldStore((state) => state.driftScores);
+  const driftVoterCounts = useLivingWorldStore((state) => state.driftVoterCounts);
+  const settlingDrift = useLivingWorldStore((state) => state.settlingDrift);
   // Just the id, not the whole GridItem: that object's screenX/screenY would
   // go stale if the camera moves while hovering (e.g. zooming with the wheel
   // without moving the mouse) - looking it up fresh from `cells` every
@@ -231,20 +235,29 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
     };
   }, []);
 
+  // Batch 10: a gentle "other people are voting too" background simulation.
+  // Started/stopped here rather than left running for the app's whole life,
+  // so a test that mounts and unmounts WorldViewport repeatedly can't stack
+  // up several intervals none of it ever cleans up.
+  useEffect(() => {
+    useLivingWorldStore.getState().start();
+    return () => useLivingWorldStore.getState().stop();
+  }, []);
+
   // Batch 9: entries added via "New entry" layer on top of whatever items
   // were passed in - always, not just for the default mockItems set, so a
   // test overriding `items` still sees the same map-wide behavior for them.
   const addedItems = Object.values(entriesByIdentifier);
 
-  // The item as it should actually be positioned/displayed: unchanged
-  // unless a vote landed on it, in which case its score/voter count reflect
-  // that (mid-settle-animation or final) rather than the raw generated
-  // value. Computed once and used everywhere below instead of `items`
-  // directly, so a cast vote is reflected consistently in positioning,
-  // grid membership, and the card - not special-cased in each place.
-  const effectiveItems = [...items, ...addedItems].map((item) =>
-    effectiveItem(item, votes, settlingScores),
-  );
+  // The item as it should actually be positioned/displayed: a real vote
+  // (unchanged, mid-settle, or final) layered with batch 10's simulated
+  // background drift on top of that. Computed once and used everywhere
+  // below instead of `items` directly, so both are reflected consistently
+  // in positioning, grid membership, and the card - not special-cased in
+  // each place.
+  const effectiveItems = [...items, ...addedItems]
+    .map((item) => effectiveItem(item, votes, settlingScores))
+    .map((item) => applyDrift(item, driftScores, driftVoterCounts, settlingDrift));
 
   const axisTopPx = (AXIS_TOP_PERCENT / 100) * viewportHeight;
   // The floor vertical zoom can never go below - see minZoomYForItems.
