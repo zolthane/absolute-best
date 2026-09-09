@@ -32,7 +32,7 @@
 | 7 | Drag to vote | 3–4 | Drag, preview, Submit — the item moves and locks | [x] |
 | 8 | Search | 2 | Type a name; fly to it | [x] |
 | 9 | Add an entry from a link | 2 | Paste a link twice; the second is refused as a duplicate | [x] |
-| 10 | The living world | 2 | Watch items drift as fake people vote | [ ] |
+| 10 | The living world | 2 | Watch items drift as fake people vote | [x] |
 | 11 | Intro screen | 2–3 | The full first-run experience | [ ] |
 | 12 | End-to-end tests and polish | 3–4 | One command proves the whole journey works | [ ] |
 
@@ -486,13 +486,24 @@ link with no data sent.
 
 ## Batch 10 — The living world
 
-- [ ] A timer that gently changes scores and voter counts, imitating other people voting
-- [ ] Items animate to their new positions rather than jumping, reusing the **weighted
+- [x] A timer that gently changes scores and voter counts, imitating other people voting
+- [x] Items animate to their new positions rather than jumping, reusing the **weighted
       settle** from batch 7 (W2) — heavily-voted items barely stir, obscure ones swing
-- [ ] The "people on site" counter drifts realistically
+- [x] The "people on site" counter drifts realistically — already built in batch 6
+      (`useSimulatedPresence`); nothing new needed here
 
 **Tests written:** the simulation stays within sensible bounds and can be stopped cleanly
 (a stopped timer that keeps running is the classic bug here).
+
+**Done when:** tested and confirmed working.
+
+**Bug found and fixed during testing (not part of the original plan):** Search only ever
+looked at the original mock items, so anything added via "New entry" was invisible to it.
+Fixed by extracting a shared `getFullEffectiveItems()` (mock items + added entries + real
+votes + simulated drift), now used by Search, New Entry, and the simulation itself. Search
+and New Entry were also both changed to recompute this fresh at click/submit time rather
+than reuse a render-time snapshot, to avoid the same "stale position" bug class fixed in
+batch 9.
 
 **Manual test guide**
 
