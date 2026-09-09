@@ -28,7 +28,7 @@
 | 3 | Grid sampling | 3–4 | Zoom out to a stable overview; zoom in for detail | [x] |
 | 4 | Entry view | 1–2 | Arrive and see the whole world, fitted | [x] |
 | 5 | Item cards and focusing | 3–4 | Click an item; the camera glides to it and shows a card | [x] |
-| 6 | Mock login | 2–3 | Log in; items turn blue; refresh keeps you logged in | [ ] |
+| 6 | Mock login | 2–3 | Log in; items turn blue; refresh keeps you logged in | [x] |
 | 7 | Drag to vote | 3–4 | Drag, preview, Submit — the item moves and locks | [ ] |
 | 8 | Search | 2 | Type a name; fly to it | [ ] |
 | 9 | Add an entry from a link | 2 | Paste a link twice; the second is refused as a duplicate | [ ] |
@@ -274,11 +274,11 @@ passwords, no real accounts** — this is a pretend session stored in your own b
 
 **Build**
 
-- [ ] Login and Register dialogs that accept a username and nothing more
-- [ ] Session kept in `localStorage`
-- [ ] Top bar: simulated "people on site" counter, and Login/Register or your username
-- [ ] Colours: **blue** = votable, **grey/black** = locked (rules R10, R11)
-- [ ] Logged out means every item is locked
+- [x] Login and Register dialogs that accept a username and nothing more
+- [x] Session kept in `localStorage`
+- [x] Top bar: simulated "people on site" counter, and Login/Register or your username
+- [x] Colours: **blue** = votable, **grey/black** = locked (rules R10, R11)
+- [x] Logged out means every item is locked
 
 **Tests written**
 
@@ -296,6 +296,34 @@ passwords, no real accounts** — this is a pretend session stored in your own b
 7. Open the site in a private browsing window — you should be logged out there.
 
 **Done when:** the colour flips correctly and survives a refresh.
+
+**Extended beyond the original plan (batch 6b), by request, once real-looking data made the
+map's real problems visible.** With realistic titles, votes-sum-constrained scoring, and 500
+items instead of 200 (commit `618a1aa`), the map got crowded enough to expose issues the
+small hand-written mock set never would have:
+
+- Item labels colliding with each other and with dots at ordinary zoom - fixed with a
+  greedy label-declutter rule (`labelDeclutter.ts`), extended to give every dot a label
+  attempt (a crowded cell shows "Title +N") once it turned out a handful of items were an
+  *exact* tie on both score and voter count - a permanent grid merge no amount of zooming
+  could ever resolve. This walks back product spec Q3c's "name shown only when alone" -
+  recorded here since Q3c was a settled decision.
+- The Y axis (voter count) never had its own camera - it was always squeezed into one
+  fixed-height strip, at any zoom. Added a real, independent vertical pan/zoom
+  (`verticalCamera.ts`), floored so it can never zoom out past "the whole voter range fits",
+  defaulting a little past that floor so items aren't crammed in from the start.
+- Panning or zooming out was unbounded on X and only zoom-floored (not pan-bounded) on Y -
+  both axes now stop once panning would reveal more than roughly half a screen of empty
+  space past the real data.
+- Clicking an item now glides the camera to centre it vertically as well as horizontally.
+- The axis ticks and grid used to be world-anchored and visibly drag away as you pan.
+  Converted to a fixed-screen ruler: tick marks and gridlines stay in place, only the
+  printed number updates - by explicit request, even though it's a step back from the
+  earlier "everything moves like a real world" feel. The ground line and zero-marker are
+  now pinned to the literal bottom edge for the same reason.
+
+Not a regression list - the map still does everything the plan asked; this is what turned
+out to be needed once it held realistic data instead of "Sample Film N" placeholders.
 
 ---
 
