@@ -1,7 +1,6 @@
 import {
   cameraToUrlParams,
   computeFocusCamera,
-  computeNiceTicks,
   declutterLabels,
   filterByVisibleRange,
   type GridCellAssignment,
@@ -9,6 +8,7 @@ import {
   logScale,
   minZoomYForItems,
   nextGridZoom,
+  niceStep,
   sampleGrid,
   screenToWorld,
   screenToWorldY,
@@ -39,20 +39,27 @@ function formatVoterTickLabel(decade: number): string {
   return (10 ** decade).toLocaleString();
 }
 
-// Batch 1 has no items yet. Positioning the axis low leaves headroom above
-// it for the vote-count (Y) axis due in batch 2, which grows upward with no
-// ceiling - most items will end up above the line, not below it. Revisit
-// once real data shows how tall that distribution actually gets.
+// Item dots are positioned as if the ground (1 voter) sat this far down the
+// screen, leaving headroom above for the vote-count (Y) axis, which grows
+// upward with no ceiling - most items end up above this line, not below it.
+// Independent of where the ground LINE is actually drawn (batch 6b pinned
+// that to the literal bottom edge instead - see the ruler comment below);
+// this is purely the coordinate system items are placed in.
 const AXIS_TOP_PERCENT = 80;
 
-// Denser than a first guess would suggest, tuned after seeing it on screen.
-// Will likely need retuning once real items compete for the same space.
-const TICK_TARGET_COUNT = 12;
+// Batch 6b: ticks sit at fixed screen positions - like a ruler laid over the
+// map - rather than at their own value's world position, so they no longer
+// visibly slide away as you pan; only the number printed at each one
+// changes, recomputed from whatever value now falls there. This is the
+// rough on-screen spacing aimed for between adjacent ticks; the actual
+// spacing is whatever a "nice" step (niceStep) comes closest to it.
+const RULER_TICK_SPACING_TARGET_PX = 96;
 
-// Ticks (and the axis line itself) are rendered for a much wider range than
-// is actually visible - roughly 2 extra screens each side - so that a live
-// pan preview (see the pointer handlers below) never drags a visible gap
-// into view before the gesture commits and a fresh set is computed.
+// Item dots are still rendered for a wider range than is actually visible -
+// roughly 2 extra screens each side - so that a live pan preview (see the
+// pointer handlers below) never drags a visible gap into view before the
+// gesture commits and a fresh set is computed. The ruler ticks/gridlines no
+// longer need this: they're fixed to the screen, not the world.
 const PAN_BUFFER_FACTOR = 2;
 
 // How far a single pointer must move before a gesture counts as a drag
@@ -354,28 +361,27 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   const visibleMaxWorld = screenToWorld(viewportWidth, camera, viewportWidth);
   const visibleWorldWidth = visibleMaxWorld - visibleMinWorld;
   const bufferWorldWidth = visibleWorldWidth * PAN_BUFFER_FACTOR;
-  const ticks = computeNiceTicks(
-    visibleMinWorld - bufferWorldWidth,
-    visibleMaxWorld + bufferWorldWidth,
-    TICK_TARGET_COUNT * (1 + 2 * PAN_BUFFER_FACTOR),
-    // A score is always a whole number (product spec, rule R2) - a label
-    // like "48.5" would not correspond to anything that could actually exist.
-    1,
-  );
   const fulcrumScreenX = worldToScreen(0, camera, viewportWidth);
 
-  // Voter-count ticks are powers of ten (product spec: "each step up means
-  // ten times as many voters") rather than computeNiceTicks' linear "nice
-  // numbers" - one tick per decade currently in view, plus the same
-  // pan-buffer margin the X ticks use.
-  const visibleMinWorldY = screenToWorldY(viewportHeight, cameraY, axisTopPx);
-  const visibleMaxWorldY = screenToWorldY(0, cameraY, axisTopPx);
-  const bufferWorldHeight = (visibleMaxWorldY - visibleMinWorldY) * PAN_BUFFER_FACTOR;
-  const yTickMinDecade = Math.max(0, Math.floor(visibleMinWorldY - bufferWorldHeight));
-  const yTickMaxDecade = Math.max(yTickMinDecade, Math.ceil(visibleMaxWorldY + bufferWorldHeight));
-  const yTicks: number[] = [];
-  for (let decade = yTickMinDecade; decade <= yTickMaxDecade; decade++) {
-    yTicks.push(decade);
+  // Fixed screen columns (batch 6b's ruler - see its comment above), one
+  // roughly every RULER_TICK_SPACING_TARGET_PX. worldStepX is rounded up to
+  // a "nice" value so labels read as 20, 50, 100 rather than 19, 51, 103,
+  // floored to 1 since a score is always a whole number (rule R2).
+  const worldStepX = Math.max(1, niceStep(RULER_TICK_SPACING_TARGET_PX / camera.zoom));
+  const pixelSpacingX = worldStepX * camera.zoom;
+  const columnsX: number[] = [];
+  for (let x = 0; x <= viewportWidth; x += pixelSpacingX) {
+    columnsX.push(x);
+  }
+
+  // Same idea for Y, but the step stays a whole number of decades (product
+  // spec: "each step up means ten times as many voters") rather than an
+  // arbitrary nice number, so labels stay powers of ten.
+  const decadeStepY = Math.max(1, niceStep(RULER_TICK_SPACING_TARGET_PX / cameraY.zoomY));
+  const pixelSpacingY = decadeStepY * cameraY.zoomY;
+  const rowsY: number[] = [];
+  for (let y = 0; y <= viewportHeight; y += pixelSpacingY) {
+    rowsY.push(y);
   }
 
   const visibleItems = filterByVisibleRange(
@@ -468,86 +474,69 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
       onPointerCancel={handlePointerUp}
       onDragStart={(event) => event.preventDefault()}
     >
-      <div ref={worldContentRef} data-testid="world-content" className="absolute inset-0">
-        {ticks.map((value) => (
-          <div
-            key={`grid-x-${value}`}
-            data-testid="world-grid-line-x"
-            className="absolute w-px bg-neutral-200"
-            style={{
-              left: worldToScreen(value, camera, viewportWidth),
-              top: -viewportHeight * PAN_BUFFER_FACTOR,
-              height: viewportHeight * (1 + 2 * PAN_BUFFER_FACTOR),
-            }}
-          />
-        ))}
-
-        {yTicks.map((decade) => (
-          <div
-            key={`grid-y-${decade}`}
-            data-testid="world-grid-line-y"
-            className="absolute h-px bg-neutral-200"
-            style={{
-              top: worldToScreenY(decade, cameraY, axisTopPx),
-              left: -viewportWidth * PAN_BUFFER_FACTOR,
-              width: viewportWidth * (1 + 2 * PAN_BUFFER_FACTOR),
-            }}
-          />
-        ))}
-
+      {/* The ruler: fixed screen positions, unaffected by worldContentRef's
+          live-drag transform, so panning never drags these away - only the
+          numbers they show change, on the next render. */}
+      {columnsX.map((x) => (
         <div
-          data-testid="world-axis"
-          className="absolute h-0.5 bg-black"
-          style={{
-            // Deliberately wider than the viewport, by the same buffer as
-            // the ticks: a bar exactly viewport-wide, translated during a
-            // drag, would pull its trailing edge away from the screen edge
-            // and leave a visible gap - this has no such edge to reveal.
-            left: -viewportWidth * PAN_BUFFER_FACTOR,
-            width: viewportWidth * (1 + 2 * PAN_BUFFER_FACTOR),
-            top: axisTopPx,
-          }}
+          key={`grid-x-${x}`}
+          data-testid="world-grid-line-x"
+          className="absolute top-0 w-px bg-neutral-200"
+          style={{ left: x, height: viewportHeight }}
         />
+      ))}
 
+      {rowsY.map((y) => (
         <div
-          data-testid="world-fulcrum"
-          className="absolute h-0 w-0 border-x-[6px] border-b-[9px] border-x-transparent border-b-black"
-          style={{
-            left: fulcrumScreenX,
-            top: axisTopPx,
-            transform: "translate(-50%, 3px)",
-          }}
+          key={`grid-y-${y}`}
+          data-testid="world-grid-line-y"
+          className="absolute left-0 h-px bg-neutral-200"
+          style={{ top: y, width: viewportWidth }}
         />
+      ))}
 
-        {ticks.map((value) => (
+      <div data-testid="world-axis" className="absolute inset-x-0 bottom-0 h-0.5 bg-black" />
+
+      <div
+        data-testid="world-fulcrum"
+        className="absolute bottom-0 h-0 w-0 border-x-[6px] border-b-[9px] border-x-transparent border-b-black"
+        style={{ left: fulcrumScreenX, transform: "translate(-50%, 3px)" }}
+      />
+
+      {columnsX.map((x) => {
+        const value = worldStepX * Math.round(screenToWorld(x, camera, viewportWidth) / worldStepX);
+        return (
           <div
-            key={value}
+            key={`tick-x-${x}`}
             data-testid="world-tick"
-            className="absolute flex -translate-x-1/2 flex-col items-center pt-4"
-            style={{
-              left: worldToScreen(value, camera, viewportWidth),
-              top: axisTopPx,
-            }}
+            className="absolute bottom-0 flex -translate-x-1/2 flex-col items-center pb-1"
+            style={{ left: x }}
           >
+            <span className="mb-1 font-semibold text-[10px] text-neutral-700">{value}</span>
             <div className="h-2 w-px bg-neutral-400" />
-            <span className="mt-1 font-semibold text-[10px] text-neutral-700">{value}</span>
           </div>
-        ))}
+        );
+      })}
 
-        {yTicks.map((decade) => (
+      {rowsY.map((y) => {
+        const decade =
+          decadeStepY * Math.round(screenToWorldY(y, cameraY, axisTopPx) / decadeStepY);
+        return (
           <div
-            key={`tick-y-${decade}`}
+            key={`tick-y-${y}`}
             data-testid="world-tick-y"
-            className="absolute flex -translate-y-1/2 items-center gap-1"
-            style={{ top: worldToScreenY(decade, cameraY, axisTopPx), left: 4 }}
+            className="absolute left-0 flex -translate-y-1/2 items-center gap-1"
+            style={{ top: y, left: 4 }}
           >
             <div className="h-px w-2 bg-neutral-400" />
             <span className="font-semibold text-[10px] text-neutral-700">
               {formatVoterTickLabel(decade)}
             </span>
           </div>
-        ))}
+        );
+      })}
 
+      <div ref={worldContentRef} data-testid="world-content" className="absolute inset-0">
         {cellRenderData.map(({ representative, count, sizePx, opacity }) => (
           <ItemDot
             key={`${representative.cellCol}:${representative.cellRow}`}

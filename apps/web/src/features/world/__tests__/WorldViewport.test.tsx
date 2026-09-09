@@ -458,4 +458,52 @@ describe("WorldViewport", () => {
       expect(labels[0]).toHaveTextContent("More Voted");
     });
   });
+
+  describe("axis ruler (batch 6b)", () => {
+    // A wide score range so the pan below stays far inside the pan-bound
+    // clamp - this test is about the ruler, not that boundary.
+    const items: Item[] = [
+      { id: "a", title: "A", score: -1000, voterCount: 10, order: 0, tags: [] },
+      { id: "b", title: "B", score: 1000, voterCount: 10, order: 1, tags: [] },
+    ];
+
+    it("keeps X tick marks at the same screen position after panning, and relabels them instead", () => {
+      render(<WorldViewport items={items} />);
+      const positionsBefore = screen.getAllByTestId("world-tick").map((tick) => tick.style.left);
+      const labelsBefore = screen.getAllByTestId("world-tick").map((tick) => tick.textContent);
+
+      const viewport = screen.getByTestId("world-viewport");
+      fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 500 });
+      fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 100 });
+      fireEvent.pointerUp(viewport, { pointerId: 1, clientX: 100 });
+
+      const positionsAfter = screen.getAllByTestId("world-tick").map((tick) => tick.style.left);
+      const labelsAfter = screen.getAllByTestId("world-tick").map((tick) => tick.textContent);
+
+      expect(positionsAfter).toEqual(positionsBefore);
+      expect(labelsAfter).not.toEqual(labelsBefore);
+    });
+
+    it("keeps Y tick marks at the same screen position after a vertical pan, and relabels them instead", () => {
+      render(<WorldViewport items={items} />);
+      const positionsBefore = screen.getAllByTestId("world-tick-y").map((tick) => tick.style.top);
+      const labelsBefore = screen.getAllByTestId("world-tick-y").map((tick) => tick.textContent);
+
+      const viewport = screen.getByTestId("world-viewport");
+      fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 500, clientY: 400 });
+      fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 500, clientY: 250 });
+      fireEvent.pointerUp(viewport, { pointerId: 1, clientX: 500, clientY: 250 });
+
+      const positionsAfter = screen.getAllByTestId("world-tick-y").map((tick) => tick.style.top);
+      const labelsAfter = screen.getAllByTestId("world-tick-y").map((tick) => tick.textContent);
+
+      expect(positionsAfter).toEqual(positionsBefore);
+      expect(labelsAfter).not.toEqual(labelsBefore);
+    });
+
+    it("pins the ground line and grid to the bottom/left edges of the viewport, not the world", () => {
+      render(<WorldViewport items={items} />);
+      expect(screen.getByTestId("world-axis")).toHaveClass("bottom-0");
+    });
+  });
 });

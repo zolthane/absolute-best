@@ -26,7 +26,7 @@ export {
 } from "./grid";
 export { declutterLabels, type LabelCandidate } from "./labelDeclutter";
 export { logScale } from "./scale";
-export { computeNiceTicks } from "./ticks";
+export { computeNiceTicks, niceStep } from "./ticks";
 export {
   clampZoomY,
   interpolateVerticalCamera,

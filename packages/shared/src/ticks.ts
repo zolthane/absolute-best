@@ -35,7 +35,14 @@ export function computeNiceTicks(min: number, max: number, targetCount = 8, minS
   return ticks;
 }
 
-function niceStep(rawStep: number): number {
+/**
+ * The step-rounding half of computeNiceTicks, exposed on its own for
+ * callers that need "the nice step near this value" rather than a whole
+ * set of tick values for a range - e.g. a fixed-screen-position ruler
+ * (batch 6b), which picks its own tick spots and only needs the step to
+ * know what value belongs at each one.
+ */
+export function niceStep(rawStep: number): number {
   if (rawStep <= 0) {
     return 0;
   }
