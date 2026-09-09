@@ -22,6 +22,25 @@ import { mockItems } from "../../data/mockItems";
 // 3: focusing animates smoothly, it does not jump).
 const FOCUS_ANIMATION_MS = 500;
 
+/**
+ * The actually-visible viewport size. Prefers the VisualViewport API, which
+ * tracks the real visible area live as a mobile browser's address bar or
+ * keyboard shows/hides or the device rotates; window.innerWidth/innerHeight
+ * can lag behind or report a stale value through that transition (most
+ * visible right after rotating to landscape), which then fed every screen
+ * position calculation - reported as the item card sometimes not showing,
+ * or the page getting stuck scrolled to a focused button's position.
+ * VisualViewport isn't implemented in jsdom (or older browsers), hence the
+ * fallback.
+ */
+export function currentViewportSize(): { width: number; height: number } {
+  const visual = window.visualViewport;
+  return {
+    width: visual?.width ?? window.innerWidth,
+    height: visual?.height ?? window.innerHeight,
+  };
+}
+
 // The entry view (product spec, batch 4): arriving shows the whole world,
 // fitted to the actual data - unless the address bar already names a camera
 // position (a shared link, product spec section 3), in which case that view
@@ -74,11 +93,13 @@ interface CameraState {
   animateTo: (targetCamera: Camera, targetCameraY: VerticalCamera) => void;
 }
 
+const initialViewportSize = currentViewportSize();
+
 export const useCameraStore = create<CameraState>((set, get) => ({
-  camera: initialCamera(window.innerWidth),
-  cameraY: initialVerticalCamera(window.innerHeight),
-  viewportWidth: window.innerWidth,
-  viewportHeight: window.innerHeight,
+  camera: initialCamera(initialViewportSize.width),
+  cameraY: initialVerticalCamera(initialViewportSize.height),
+  viewportWidth: initialViewportSize.width,
+  viewportHeight: initialViewportSize.height,
 
   setViewportWidth: (width) => {
     // Only the very first real measurement sets the initial zoom - later

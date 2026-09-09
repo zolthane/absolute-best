@@ -1,11 +1,43 @@
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import type { Item } from "../../data/mockItems";
+
+interface ItemCardVote {
+  // The proposed change to the item's score - live while still dragging,
+  // frozen once released (product spec section 4: releasing does not vote).
+  delta: number;
+  // False while the drag is still in progress (a preview only); true once
+  // released, meaning the Submit button should be shown (rule R9).
+  isPending: boolean;
+  onSubmit: () => void;
+}
+
+interface ItemCardAlternate {
+  id: string;
+  title: string;
+}
 
 interface ItemCardProps {
   item: Item;
   screenX: number;
   screenY: number;
+  // Present only for the focused, currently-being-voted-on item - see
+  // WorldViewport, which is the only place that ever supplies one.
+  vote?: ItemCardVote;
+  // The rest of a crowded cell's members, i.e. everyone else sharing this
+  // exact dot - present only when there's more than one (see WorldViewport).
+  // Some of these can be an unsolvable-by-zoom tie (an identical score and
+  // voter count), so switching to one is the only way to ever reach it.
+  alternates?: ItemCardAlternate[];
+  onSelectAlternate?: (id: string) => void;
 }
 
 // Positioned just above the dot it describes, horizontally centred on it -
@@ -18,7 +50,14 @@ const CARD_OFFSET_FROM_DOT_PX = 12;
 // without the complexity of a measure-then-position render pass.
 const CARD_HEIGHT_ESTIMATE_PX = 220;
 
-export function ItemCard({ item, screenX, screenY }: ItemCardProps) {
+export function ItemCard({
+  item,
+  screenX,
+  screenY,
+  vote,
+  alternates,
+  onSelectAlternate,
+}: ItemCardProps) {
   const roomAbove = screenY - CARD_HEIGHT_ESTIMATE_PX - CARD_OFFSET_FROM_DOT_PX >= 0;
   const transform = roomAbove
     ? `translate(-50%, calc(-100% - ${CARD_OFFSET_FROM_DOT_PX}px))`
@@ -54,6 +93,52 @@ export function ItemCard({ item, screenX, screenY }: ItemCardProps) {
           <Badge key={tag}>{tag}</Badge>
         ))}
       </CardContent>
+      {alternates && alternates.length > 0 && (
+        <CardContent data-testid="item-card-alternates" className="flex flex-col gap-1.5 border-t">
+          <p className="text-muted-foreground text-xs">
+            Sharing this spot ({alternates.length} more):
+          </p>
+          <div className="flex flex-wrap gap-1">
+            {alternates.map((alternate) => (
+              <button
+                key={alternate.id}
+                type="button"
+                onClick={() => onSelectAlternate?.(alternate.id)}
+                // Same reasoning as the Submit button below: the card itself
+                // is pointer-events-none, this is the one part meant to be
+                // clickable.
+                className="pointer-events-auto rounded-full border border-border bg-background px-2 py-0.5 text-xs hover:bg-muted"
+              >
+                {alternate.title}
+              </button>
+            ))}
+          </div>
+        </CardContent>
+      )}
+      {vote && (
+        <CardFooter className="flex-col items-stretch gap-1.5">
+          <p data-testid="vote-preview" className="font-medium text-sm">
+            {item.score} {vote.delta >= 0 ? "+" : "-"} {Math.abs(vote.delta)} ={" "}
+            {item.score + vote.delta}
+          </p>
+          {vote.isPending && (
+            <>
+              <Button
+                type="button"
+                onClick={vote.onSubmit}
+                // The card above is pointer-events-none so a floating card
+                // never steals clicks meant for the map beneath it - this is
+                // the one part of it that should actually be clickable.
+                className="pointer-events-auto w-full"
+              >
+                Submit vote: {vote.delta > 0 ? "+" : ""}
+                {vote.delta}
+              </Button>
+              <p className="text-muted-foreground text-xs">This cannot be undone.</p>
+            </>
+          )}
+        </CardFooter>
+      )}
     </Card>
   );
 }

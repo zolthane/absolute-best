@@ -29,7 +29,7 @@
 | 4 | Entry view | 1–2 | Arrive and see the whole world, fitted | [x] |
 | 5 | Item cards and focusing | 3–4 | Click an item; the camera glides to it and shows a card | [x] |
 | 6 | Mock login | 2–3 | Log in; items turn blue; refresh keeps you logged in | [x] |
-| 7 | Drag to vote | 3–4 | Drag, preview, Submit — the item moves and locks | [ ] |
+| 7 | Drag to vote | 3–4 | Drag, preview, Submit — the item moves and locks | [x] |
 | 8 | Search | 2 | Type a name; fly to it | [ ] |
 | 9 | Add an entry from a link | 2 | Paste a link twice; the second is refused as a duplicate | [ ] |
 | 10 | The living world | 2 | Watch items drift as fake people vote | [ ] |
@@ -333,19 +333,19 @@ out to be needed once it held realistic data instead of "Sample Film N" placehol
 
 **Build**
 
-- [ ] Drag a focused item left or right, snapping to whole points, limited to ±10
-- [ ] Live preview of the projected new total while dragging
-- [ ] Release does **not** vote — a Submit button appears (rule R9)
-- [ ] Re-dragging before Submit is free and unlimited
-- [ ] Submit warns that it cannot be undone
-- [ ] On submit: score changes by the vote, voter count rises by one, item locks and turns
+- [x] Drag a focused item left or right, snapping to whole points, limited to ±10
+- [x] Live preview of the projected new total while dragging
+- [x] Release does **not** vote — a Submit button appears (rule R9)
+- [x] Re-dragging before Submit is free and unlimited
+- [x] Submit warns that it cannot be undone
+- [x] On submit: score changes by the vote, voter count rises by one, item locks and turns
       grey
-- [ ] Logged-out visitors cannot drag at all
-- [ ] **Works by touch as well as mouse (S1)** — drag and Submit on a phone
-- [ ] **Weighted settle (W2):** the item springs to its new position, overshooting slightly,
+- [x] Logged-out visitors cannot drag at all
+- [x] **Works by touch as well as mouse (S1)** — drag and Submit on a phone
+- [x] **Weighted settle (W2):** the item springs to its new position, overshooting slightly,
       with the overshoot shrinking as voter count rises. **Keep it very subtle** — your
       answer to W2 was "yes, but subtle"
-- [ ] **Honour `prefers-reduced-motion`** — move directly, with no spring, when it is set
+- [x] **Honour `prefers-reduced-motion`** — move directly, with no spring, when it is set
 
 **Tests written** — the core promise of the product, so tested hard:
 
@@ -371,6 +371,45 @@ out to be needed once it held realistic data instead of "Sample Film N" placehol
 10. Log out and try to drag any item. Nothing should move.
 
 **Done when:** steps 5, 7 and 8 all behave. **Then stop and show it to five people.**
+
+**Extended beyond the original plan, by request, once real dragging on a real device exposed
+things the plan hadn't anticipated:**
+
+- A tied cell's "+N" label (added in batch 6b) was still losing the collision fight against
+  any nearby item, because its priority was just its own voter count - the lowest number in
+  the whole dataset by construction. Crowded cells now get a large priority bonus so they
+  reliably win.
+- An exact score-and-voter-count tie is genuinely unreachable through the map alone (no zoom
+  can split it) - the card now lists a crowded cell's other members ("sharing this spot")
+  and lets you pick one, which becomes the shown, focusable, votable dot in that spot.
+- The vote-preview card was keyed to whatever was *hovered*, not whatever was being voted on
+  - since the dot doesn't move during the drag, the cursor is often elsewhere by release,
+  and could land on a different dot entirely, silently swapping the Submit button away.
+  Fixed to stay locked to the item actually being voted on.
+- Casting a vote moves an item up by one step of voter count, which the log-scaled Y axis
+  can turn into a large jump for a low-voter item - Submit now zooms the camera out first if
+  it needs to, so the item can't simply vanish off-screen the instant the vote lands.
+- Background-click-to-unfocus was bound to the wrong DOM layer and never actually fired -
+  moved to the layer that really receives clicks, with a guard so a pan ending over empty
+  space isn't mistaken for one.
+- The focused, votable dot is now bigger - reported as hard to grab precisely.
+- Drag sensitivity was tied to the map's own zoom level, which could require dragging the
+  full screen width to reach ±10 - worse on a phone, where the far end of that range could
+  fall off-screen entirely. Changed twice over testing to a fixed 12px per point, independent
+  of zoom or screen size.
+- The preview text ("10 → 17") read as an unwanted "before/after" framing - changed to show
+  the arithmetic instead ("10 + 7 = 17").
+- Viewport measurement switched from `window.innerWidth/innerHeight` to the VisualViewport
+  API (with a fallback), plus `orientationchange` handling and a defensive
+  `overflow: hidden` on `html`/`body` - `window.innerWidth/innerHeight` could report a stale
+  size for a moment right after rotating on mobile, which fed every screen-position
+  calculation and was reported as the item card sometimes not showing, or the page getting
+  stuck scrolled to a focused button, after rotating to landscape.
+- Added `docs/12-testing-guide.md`: the exact commands for browser and phone testing, kept
+  as a standing reference rather than repeated in chat each time.
+
+Not a regression list - this is what testing on a real phone, with realistic crowded data,
+turned out to need. See commit history on `feature/batch-7-drag-to-vote` for the detail.
 
 ---
 

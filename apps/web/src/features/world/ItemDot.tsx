@@ -1,4 +1,5 @@
 interface ItemDotProps {
+  itemId: string;
   screenX: number;
   screenY: number;
   title: string;
@@ -10,6 +11,11 @@ interface ItemDotProps {
   sizePx: number;
   opacity: number;
   isVotable: boolean;
+  // Product spec section 3: "the chosen item is highlighted". Batch 7 also
+  // uses this to mean "grabbable" - only a focused dot's pointerdown can
+  // start a vote drag (see WorldViewport, which reads itemId back off the
+  // DOM at pointerdown via data-item-id).
+  isFocused: boolean;
   onHoverStart: () => void;
   onHoverEnd: () => void;
   onSelect: () => void;
@@ -19,6 +25,7 @@ interface ItemDotProps {
 // an element's whole subtree in CSS, so a label nested inside a dimmed dot
 // would be dimmed along with it and become hard to read for a lone item.
 export function ItemDot({
+  itemId,
   screenX,
   screenY,
   title,
@@ -26,6 +33,7 @@ export function ItemDot({
   sizePx,
   opacity,
   isVotable,
+  isFocused,
   onHoverStart,
   onHoverEnd,
   onSelect,
@@ -36,11 +44,13 @@ export function ItemDot({
       {/* biome-ignore lint/a11y/useKeyWithClickEvents: same as above - S6 covers this dot too. */}
       <div
         data-testid="item-dot"
-        // Rules R10/R11: blue = votable, grey = locked (logged out, or
-        // already voted once batch 7 exists).
+        data-item-id={itemId}
+        // Rules R10/R11: blue = votable, grey = locked (logged out, already
+        // voted, or not the focused item). A focused dot gets a ring so it
+        // is clear which one is grabbable (product spec section 3).
         className={`-translate-x-1/2 -translate-y-1/2 absolute cursor-pointer rounded-full ${
           isVotable ? "bg-blue-600" : "bg-neutral-500"
-        }`}
+        } ${isFocused ? "ring-2 ring-black ring-offset-1" : ""}`}
         style={{ left: screenX, top: screenY, width: sizePx, height: sizePx, opacity }}
         onMouseEnter={onHoverStart}
         onMouseLeave={onHoverEnd}

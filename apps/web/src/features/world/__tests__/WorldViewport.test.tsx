@@ -1,7 +1,8 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Item } from "../../../data/mockItems";
 import { useAuthStore } from "../../auth/authStore";
+import { useVoteStore } from "../../vote/voteStore";
 import { useCameraStore } from "../cameraStore";
 import { WorldViewport } from "../WorldViewport";
 
@@ -17,6 +18,7 @@ beforeEach(() => {
     viewportHeight: 800,
   });
   useAuthStore.setState({ username: null });
+  useVoteStore.setState({ votes: {}, settlingScores: {} });
 });
 
 describe("WorldViewport", () => {
@@ -253,6 +255,26 @@ describe("WorldViewport", () => {
       expect(screen.getByTestId("item-label")).toHaveTextContent("Alpha +1");
     });
 
+    it("lets a crowded (tied) cell's label win over a nearby lone item's, even with fewer voters", () => {
+      // Reported bug: an exact score-and-voter-count tie is common precisely
+      // among low-voter items (a single vote has only 21 possible scores),
+      // so its label used to always lose the collision fight to whatever
+      // higher-voter item happened to sit nearby - the crowded cluster's
+      // priority (its representative's own voterCount) was the lowest in
+      // the whole dataset by construction. zoomY is flattened to 1 here so
+      // the two items' very different voter counts don't also separate them
+      // vertically - this test is about label priority, not geometry.
+      useCameraStore.setState({ cameraY: { centerY: 0, zoomY: 1 } });
+      const items: Item[] = [
+        { id: "a", title: "Alpha", score: 9, voterCount: 1, order: 0, tags: [] },
+        { id: "b", title: "Beta", score: 9, voterCount: 1, order: 1, tags: [] },
+        { id: "c", title: "Zz", score: 10, voterCount: 5, order: 2, tags: [] },
+      ];
+      render(<WorldViewport items={items} />);
+
+      expect(screen.getByTestId("item-label")).toHaveTextContent("Alpha +1");
+    });
+
     it("draws a larger dot for a more crowded cell than for a lone item", () => {
       const alone: Item[] = [
         { id: "a", title: "Alpha", score: 0, voterCount: 10, order: 0, tags: [] },
@@ -294,6 +316,33 @@ describe("WorldViewport", () => {
           9,
         );
       }
+    });
+  });
+
+  describe("shared cell picker (batch 7 follow-up)", () => {
+    const items: Item[] = [
+      { id: "a", title: "Alpha", score: 2, voterCount: 100, order: 0, tags: [] },
+      { id: "b", title: "Beta", score: 3, voterCount: 100, order: 1, tags: [] },
+    ];
+
+    it("lets you pick a different member of a crowded cell, which then becomes the shown, interactive dot", () => {
+      render(<WorldViewport items={items} />);
+      // See "focuses the clicked item..." below for why this must be mocked.
+      const animateTo = vi
+        .spyOn(useCameraStore.getState(), "animateTo")
+        .mockImplementation(() => {});
+
+      fireEvent.click(screen.getByTestId("item-dot"));
+      expect(screen.getByTestId("item-card")).toHaveTextContent("Alpha");
+      expect(screen.getByTestId("item-card-alternates")).toHaveTextContent("Beta");
+
+      fireEvent.click(screen.getByRole("button", { name: "Beta" }));
+
+      expect(screen.getByTestId("item-card")).toHaveTextContent("Beta");
+      expect(screen.getByTestId("item-card-alternates")).toHaveTextContent("Alpha");
+      expect(screen.getByTestId("item-dot")).toHaveAttribute("data-item-id", "b");
+
+      animateTo.mockRestore();
     });
   });
 
@@ -504,6 +553,241 @@ describe("WorldViewport", () => {
     it("pins the ground line and grid to the bottom/left edges of the viewport, not the world", () => {
       render(<WorldViewport items={items} />);
       expect(screen.getByTestId("world-axis")).toHaveClass("bottom-0");
+    });
+  });
+
+  describe("drag to vote (batch 7)", () => {
+    const items: Item[] = [
+      { id: "a", title: "Alpha", score: 20, voterCount: 100, order: 0, tags: [] },
+    ];
+
+    // Every test here focuses the item with a plain click first, which also
+    // triggers the real animateTo - mocked for the same reason the
+    // "item cards and focusing" tests mock it: jsdom's requestAnimationFrame
+    // timestamps never line up with performance.now(), so the unmocked
+    // implementation would start a loop that never finishes and leaks into
+    // later tests.
+    beforeEach(() => {
+      vi.spyOn(useCameraStore.getState(), "animateTo").mockImplementation(() => {});
+    });
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("makes the focused, votable item's dot bigger - reported as hard to grab", () => {
+      useAuthStore.setState({ username: "Alice" });
+      render(<WorldViewport items={items} />);
+      const sizeBefore = Number.parseFloat(screen.getByTestId("item-dot").style.width);
+
+      fireEvent.click(screen.getByTestId("item-dot"));
+
+      const sizeAfter = Number.parseFloat(screen.getByTestId("item-dot").style.width);
+      expect(sizeAfter).toBeGreaterThan(sizeBefore);
+    });
+
+    it("does not let a logged-out visitor start a vote drag - it pans instead (rule R11)", () => {
+      render(<WorldViewport items={items} />);
+      fireEvent.click(screen.getByTestId("item-dot"));
+      const dot = screen.getByTestId("item-dot");
+      const centerBefore = useCameraStore.getState().camera.center;
+
+      fireEvent.pointerDown(dot, { pointerId: 1, clientX: 580 });
+      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 620 });
+      fireEvent.pointerUp(dot, { pointerId: 1, clientX: 620 });
+
+      expect(screen.queryByTestId("vote-preview")).not.toBeInTheDocument();
+      // Fell through to the ordinary pan gesture instead of voting.
+      expect(useCameraStore.getState().camera.center).not.toBe(centerBefore);
+    });
+
+    it("previews a live vote amount while dragging the focused, logged-in item", () => {
+      useAuthStore.setState({ username: "Alice" });
+      render(<WorldViewport items={items} />);
+      fireEvent.click(screen.getByTestId("item-dot"));
+      const dot = screen.getByTestId("item-dot");
+
+      // VOTE_DRAG_PX_PER_POINT is 12: dragging 36px right is +3.
+      fireEvent.pointerDown(dot, { pointerId: 1, clientX: 580 });
+      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 616 });
+
+      expect(screen.getByTestId("vote-preview")).toHaveTextContent("20 + 3 = 23");
+      expect(screen.queryByRole("button", { name: /submit/i })).not.toBeInTheDocument();
+      // Not cast until Submit, and the map must not have panned instead.
+      expect(useVoteStore.getState().hasVoted("a")).toBe(false);
+    });
+
+    it("clamps the drag to +-10 points, however far the pointer moves (rule R4)", () => {
+      useAuthStore.setState({ username: "Alice" });
+      render(<WorldViewport items={items} />);
+      fireEvent.click(screen.getByTestId("item-dot"));
+      const dot = screen.getByTestId("item-dot");
+
+      fireEvent.pointerDown(dot, { pointerId: 1, clientX: 580 });
+      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 5000 });
+
+      expect(screen.getByTestId("vote-preview")).toHaveTextContent("20 + 10 = 30");
+    });
+
+    it("needs the same drag distance to reach +10 regardless of the map's zoom level", () => {
+      // Reported bug: this used to be tied to camera.zoom (the map's own
+      // pan/zoom), so reaching +-10 could take the full width of the screen
+      // at a typical zoomed-out level - worse on a narrow phone screen,
+      // where the far end of that range could fall outside the screen
+      // entirely. It must now take the exact same drag at any zoom.
+      useAuthStore.setState({ username: "Alice" });
+      useCameraStore.setState({ camera: { center: 0, zoom: 0.1 } });
+      render(<WorldViewport items={items} />);
+      fireEvent.click(screen.getByTestId("item-dot"));
+      const dot = screen.getByTestId("item-dot");
+
+      fireEvent.pointerDown(dot, { pointerId: 1, clientX: 580 });
+      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 700 });
+
+      expect(screen.getByTestId("vote-preview")).toHaveTextContent("20 + 10 = 30");
+    });
+
+    it("does not cast the vote on release - a Submit button appears instead (rule R9)", () => {
+      useAuthStore.setState({ username: "Alice" });
+      render(<WorldViewport items={items} />);
+      fireEvent.click(screen.getByTestId("item-dot"));
+      const dot = screen.getByTestId("item-dot");
+
+      fireEvent.pointerDown(dot, { pointerId: 1, clientX: 580 });
+      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 700 });
+      fireEvent.pointerUp(dot, { pointerId: 1, clientX: 700 });
+
+      expect(useVoteStore.getState().hasVoted("a")).toBe(false);
+      expect(screen.getByRole("button", { name: /submit vote: \+10/i })).toBeInTheDocument();
+    });
+
+    it("commits the vote on Submit and locks the item (grey, no longer draggable)", () => {
+      useAuthStore.setState({ username: "Alice" });
+      render(<WorldViewport items={items} />);
+      fireEvent.click(screen.getByTestId("item-dot"));
+      const dot = screen.getByTestId("item-dot");
+
+      fireEvent.pointerDown(dot, { pointerId: 1, clientX: 580 });
+      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 700 });
+      fireEvent.pointerUp(dot, { pointerId: 1, clientX: 700 });
+      fireEvent.click(screen.getByRole("button", { name: /submit vote: \+10/i }));
+
+      expect(useVoteStore.getState().hasVoted("a")).toBe(true);
+      expect(useVoteStore.getState().votes.a).toBe(10);
+      expect(screen.queryByRole("button", { name: /submit/i })).not.toBeInTheDocument();
+      expect(screen.getByTestId("item-dot")).not.toHaveClass("bg-blue-600");
+    });
+
+    it("zooms the vertical camera out on Submit for a low-voter item, so it doesn't jump off-screen", () => {
+      // Reported bug: voting moves an item up by one step of voterCount,
+      // which the log-scaled Y axis can turn into a large jump for a
+      // low-voter item - a 1-voter item's position doubles just by going to
+      // 2 voters. Without this, the item could simply vanish off-screen the
+      // instant the vote landed.
+      useAuthStore.setState({ username: "Alice" });
+      const lowVoterItems: Item[] = [
+        { id: "a", title: "Alpha", score: 20, voterCount: 1, order: 0, tags: [] },
+      ];
+      render(<WorldViewport items={lowVoterItems} />);
+      fireEvent.click(screen.getByTestId("item-dot"));
+      const dot = screen.getByTestId("item-dot");
+
+      // Simulates having zoomed in close on this one item before voting -
+      // realistic, since voting requires focusing it first, and a lone,
+      // low-voter item is easy to zoom in close on.
+      act(() => {
+        useCameraStore.setState({ cameraY: { centerY: 0, zoomY: 5000 } });
+      });
+
+      fireEvent.pointerDown(dot, { pointerId: 1, clientX: 580 });
+      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 700 });
+      fireEvent.pointerUp(dot, { pointerId: 1, clientX: 700 });
+
+      const animateTo = vi.mocked(useCameraStore.getState().animateTo);
+      animateTo.mockClear();
+
+      fireEvent.click(screen.getByRole("button", { name: /submit vote: \+10/i }));
+
+      expect(animateTo).toHaveBeenCalledTimes(1);
+      const [, targetCameraY] = animateTo.mock.calls[0] ?? [];
+      // voterCount 1 -> 2 is a worldY jump of log10(2) ≈ 0.301, which at
+      // zoom 5000 is ~1505px - more than half the 800px viewport - so the
+      // camera must zoom out to exactly the zoom that keeps it within half.
+      expect(targetCameraY?.zoomY).toBeCloseTo((800 * 0.5) / Math.log10(2), 5);
+    });
+
+    it("starts fresh, not additive, when re-dragging before Submit", () => {
+      useAuthStore.setState({ username: "Alice" });
+      render(<WorldViewport items={items} />);
+      fireEvent.click(screen.getByTestId("item-dot"));
+      const dot = screen.getByTestId("item-dot");
+
+      fireEvent.pointerDown(dot, { pointerId: 1, clientX: 580 });
+      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 700 }); // +10
+      fireEvent.pointerUp(dot, { pointerId: 1, clientX: 700 });
+      expect(screen.getByTestId("vote-preview")).toHaveTextContent("20 + 10 = 30");
+
+      // A fresh drag, not one continuing from +10 - rule R4: always the
+      // full range, centred on the item.
+      fireEvent.pointerDown(dot, { pointerId: 2, clientX: 580 });
+      fireEvent.pointerMove(dot, { pointerId: 2, clientX: 520 }); // -5
+      expect(screen.getByTestId("vote-preview")).toHaveTextContent("20 - 5 = 15");
+    });
+
+    it("un-focuses (and abandons a pending vote) when the background is clicked", () => {
+      useAuthStore.setState({ username: "Alice" });
+      render(<WorldViewport items={items} />);
+      fireEvent.click(screen.getByTestId("item-dot"));
+      const dot = screen.getByTestId("item-dot");
+
+      fireEvent.pointerDown(dot, { pointerId: 1, clientX: 580 });
+      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 620 });
+      fireEvent.pointerUp(dot, { pointerId: 1, clientX: 620 });
+      expect(screen.getByRole("button", { name: /submit/i })).toBeInTheDocument();
+
+      // world-content, not world-viewport: it's the full-size layer stacked
+      // on top of everything else in the viewport, so it's the real target
+      // a genuine click on empty space would have in a browser.
+      fireEvent.click(screen.getByTestId("world-content"));
+
+      expect(screen.queryByTestId("item-card")).not.toBeInTheDocument();
+      expect(useVoteStore.getState().hasVoted("a")).toBe(false);
+    });
+
+    it("does not un-focus when a pan drag happens to end over empty space", () => {
+      useAuthStore.setState({ username: "Alice" });
+      render(<WorldViewport items={items} />);
+      fireEvent.click(screen.getByTestId("item-dot"));
+      expect(screen.getByTestId("item-card")).toBeInTheDocument();
+
+      const viewport = screen.getByTestId("world-viewport");
+      fireEvent.pointerDown(viewport, { pointerId: 2, clientX: 100, clientY: 100 });
+      fireEvent.pointerMove(viewport, { pointerId: 2, clientX: 130, clientY: 100 });
+      fireEvent.pointerUp(viewport, { pointerId: 2, clientX: 130, clientY: 100 });
+      // The browser still fires a click after the drag, landing on
+      // world-content wherever the pointer was released.
+      fireEvent.click(screen.getByTestId("world-content"));
+
+      expect(screen.getByTestId("item-card")).toBeInTheDocument();
+    });
+
+    it("keeps the Submit button on the item being voted on, even if the pointer ends up hovering a different dot", () => {
+      useAuthStore.setState({ username: "Alice" });
+      const twoItems: Item[] = [
+        { id: "a", title: "Alpha", score: 20, voterCount: 100, order: 0, tags: [] },
+        { id: "b", title: "Beta", score: 30, voterCount: 100, order: 1, tags: [] },
+      ];
+      render(<WorldViewport items={twoItems} />);
+      fireEvent.click(screen.getAllByTestId("item-dot")[0] as HTMLElement);
+      const dot = screen.getAllByTestId("item-dot")[0] as HTMLElement;
+
+      fireEvent.pointerDown(dot, { pointerId: 1, clientX: 580 });
+      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 700 });
+      fireEvent.pointerUp(dot, { pointerId: 1, clientX: 700 });
+      // Simulates the pointer landing over the OTHER item's dot on release -
+      // exactly what used to make the Submit button vanish.
+      fireEvent.mouseEnter(screen.getAllByTestId("item-dot")[1] as HTMLElement);
+
+      expect(screen.getByRole("button", { name: /submit vote: \+10/i })).toBeInTheDocument();
     });
   });
 });

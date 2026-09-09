@@ -21,4 +21,15 @@
   * {
     border-color: var(--color-border);
   }
+
+  /* The app has no content of its own that should ever scroll (App.tsx's
+     main is its own fixed, h-dvh, overflow-hidden box) - this is a second
+     line of defence against mobile browsers that scroll the whole page to
+     bring a just-tapped button into view, which can otherwise leave the
+     page stuck scrolled past the map, showing only the bottom of a card. */
+  html,
+  body {
+    height: 100%;
+    overflow: hidden;
+  }
 }
