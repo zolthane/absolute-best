@@ -26,6 +26,7 @@ export {
 } from "./grid";
 export { declutterLabels, type LabelCandidate } from "./labelDeclutter";
 export { logScale } from "./scale";
+export { settleOvershoot, springSettleProgress } from "./springSettle";
 export { computeNiceTicks, niceStep } from "./ticks";
 export {
   clampZoomY,

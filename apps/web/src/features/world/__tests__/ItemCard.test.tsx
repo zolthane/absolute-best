@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import type { Item } from "../../../data/mockItems";
 import { ItemCard } from "../ItemCard";
 
@@ -26,5 +26,54 @@ describe("ItemCard", () => {
     render(<ItemCard item={item} screenX={500} screenY={50} />);
     const transform = screen.getByTestId("item-card").style.transform;
     expect(transform).not.toContain("-100%");
+  });
+
+  describe("vote (batch 7)", () => {
+    it("shows no vote preview or Submit button when not voting", () => {
+      render(<ItemCard item={item} screenX={500} screenY={400} />);
+      expect(screen.queryByTestId("vote-preview")).not.toBeInTheDocument();
+      expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    });
+
+    it("previews the projected score while dragging, without a Submit button yet", () => {
+      render(
+        <ItemCard
+          item={item}
+          screenX={500}
+          screenY={400}
+          vote={{ delta: 7, isPending: false, onSubmit: vi.fn() }}
+        />,
+      );
+      expect(screen.getByTestId("vote-preview")).toHaveTextContent("10 → 17");
+      expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    });
+
+    it("shows a Submit button with the signed delta once released (rule R9)", () => {
+      const onSubmit = vi.fn();
+      render(
+        <ItemCard
+          item={item}
+          screenX={500}
+          screenY={400}
+          vote={{ delta: 7, isPending: true, onSubmit }}
+        />,
+      );
+
+      const button = screen.getByRole("button", { name: /submit vote: \+7/i });
+      fireEvent.click(button);
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+    });
+
+    it("signs a negative vote correctly, without a double minus", () => {
+      render(
+        <ItemCard
+          item={item}
+          screenX={500}
+          screenY={400}
+          vote={{ delta: -3, isPending: true, onSubmit: vi.fn() }}
+        />,
+      );
+      expect(screen.getByRole("button")).toHaveTextContent("Submit vote: -3");
+    });
   });
 });

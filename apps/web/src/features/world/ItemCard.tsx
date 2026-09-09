@@ -1,11 +1,32 @@
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import type { Item } from "../../data/mockItems";
+
+interface ItemCardVote {
+  // The proposed change to the item's score - live while still dragging,
+  // frozen once released (product spec section 4: releasing does not vote).
+  delta: number;
+  // False while the drag is still in progress (a preview only); true once
+  // released, meaning the Submit button should be shown (rule R9).
+  isPending: boolean;
+  onSubmit: () => void;
+}
 
 interface ItemCardProps {
   item: Item;
   screenX: number;
   screenY: number;
+  // Present only for the focused, currently-being-voted-on item - see
+  // WorldViewport, which is the only place that ever supplies one.
+  vote?: ItemCardVote;
 }
 
 // Positioned just above the dot it describes, horizontally centred on it -
@@ -18,7 +39,7 @@ const CARD_OFFSET_FROM_DOT_PX = 12;
 // without the complexity of a measure-then-position render pass.
 const CARD_HEIGHT_ESTIMATE_PX = 220;
 
-export function ItemCard({ item, screenX, screenY }: ItemCardProps) {
+export function ItemCard({ item, screenX, screenY, vote }: ItemCardProps) {
   const roomAbove = screenY - CARD_HEIGHT_ESTIMATE_PX - CARD_OFFSET_FROM_DOT_PX >= 0;
   const transform = roomAbove
     ? `translate(-50%, calc(-100% - ${CARD_OFFSET_FROM_DOT_PX}px))`
@@ -54,6 +75,29 @@ export function ItemCard({ item, screenX, screenY }: ItemCardProps) {
           <Badge key={tag}>{tag}</Badge>
         ))}
       </CardContent>
+      {vote && (
+        <CardFooter className="flex-col items-stretch gap-1.5">
+          <p data-testid="vote-preview" className="font-medium text-sm">
+            {item.score} → {item.score + vote.delta}
+          </p>
+          {vote.isPending && (
+            <>
+              <Button
+                type="button"
+                onClick={vote.onSubmit}
+                // The card above is pointer-events-none so a floating card
+                // never steals clicks meant for the map beneath it - this is
+                // the one part of it that should actually be clickable.
+                className="pointer-events-auto w-full"
+              >
+                Submit vote: {vote.delta > 0 ? "+" : ""}
+                {vote.delta}
+              </Button>
+              <p className="text-muted-foreground text-xs">This cannot be undone.</p>
+            </>
+          )}
+        </CardFooter>
+      )}
     </Card>
   );
 }

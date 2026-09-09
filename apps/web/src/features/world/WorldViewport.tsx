@@ -22,6 +22,7 @@ import { useEffect, useRef, useState } from "react";
 import { type Item, mockItems } from "../../data/mockItems";
 import { useAuthStore } from "../auth/authStore";
 import { isItemVotable } from "../auth/voteState";
+import { effectiveItem, useVoteStore } from "../vote/voteStore";
 import { useCameraStore } from "./cameraStore";
 import { ItemCard } from "./ItemCard";
 import { ItemDot } from "./ItemDot";
@@ -91,6 +92,9 @@ const LABEL_CHAR_WIDTH_PX = 5.5;
 const LABEL_TEXT_PADDING_PX = 6;
 const LABEL_HEIGHT_PX = 14;
 
+// Rule R4: a vote is always the full -10..10 range, centred on the item.
+const MAX_VOTE_MAGNITUDE = 10;
+
 interface GridItem extends GridCellAssignment {
   item: Item;
   screenX: number;
@@ -119,17 +123,35 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   const viewportWidth = useCameraStore((state) => state.viewportWidth);
   const viewportHeight = useCameraStore((state) => state.viewportHeight);
   const isLoggedIn = useAuthStore((state) => state.username !== null);
+  const votes = useVoteStore((state) => state.votes);
+  const settlingScores = useVoteStore((state) => state.settlingScores);
   // Just the id, not the whole GridItem: that object's screenX/screenY would
   // go stale if the camera moves while hovering (e.g. zooming with the wheel
   // without moving the mouse) - looking it up fresh from `cells` every
   // render keeps the card's position always current.
   const [hoveredItemId, setHoveredItemId] = useState<string | null>(null);
+  // Product spec section 3: the chosen item stays highlighted and shows its
+  // name/score - a separate, more persistent concept from hover. Only the
+  // focused item's dot can ever be grabbed to vote (section 4).
+  const [focusedItemId, setFocusedItemId] = useState<string | null>(null);
+  // The in-progress drag (batch 7): present only while a pointer that
+  // started on the focused, votable dot is actually being dragged.
+  const [voteDrag, setVoteDrag] = useState<{ itemId: string; delta: number } | null>(null);
+  // What's left once that pointer is released, before Submit is pressed
+  // (rule R9: releasing does not vote). Cleared on Submit or on refocusing
+  // a different item - re-dragging the same one starts fresh (rule R4).
+  const [pendingVote, setPendingVote] = useState<{ itemId: string; delta: number } | null>(null);
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const worldContentRef = useRef<HTMLDivElement>(null);
   const activePointers = useRef(new Map<number, Point>());
   const panGestureStart = useRef<Point | null>(null);
   const pinchStartDistance = useRef<number | null>(null);
+  // Which pointer, if any, is currently dragging the focused item to vote -
+  // kept separate from activePointers so the vote gesture and the pan/pinch
+  // gesture never fight over the same bookkeeping.
+  const votingPointerId = useRef<number | null>(null);
+  const voteDragStartClientX = useRef<number | null>(null);
   // The zoom the grid last used - deliberately separate from the camera's
   // own zoom, so nextGridZoom can hold it still against noise. See
   // nextGridZoom's doc comment for why. One per axis, since X and Y now
@@ -149,23 +171,31 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  // The item as it should actually be positioned/displayed: unchanged
+  // unless a vote landed on it, in which case its score/voter count reflect
+  // that (mid-settle-animation or final) rather than the raw generated
+  // value. Computed once and used everywhere below instead of `items`
+  // directly, so a cast vote is reflected consistently in positioning,
+  // grid membership, and the card - not special-cased in each place.
+  const effectiveItems = items.map((item) => effectiveItem(item, votes, settlingScores));
+
   const axisTopPx = (AXIS_TOP_PERCENT / 100) * viewportHeight;
   // The floor vertical zoom can never go below - see minZoomYForItems.
-  const minZoomY = minZoomYForItems(items, viewportHeight);
+  const minZoomY = minZoomYForItems(effectiveItems, viewportHeight);
 
   // Pan bounds (batch 6b): panning or zooming out can reveal empty space
   // beyond the data, but never more than half a screen of it on either
   // side - a "there's nothing more to see this way" guardrail for both
   // axes. Half a screen's worth of world-units depends on the current zoom,
   // so this is recomputed every render, not a fixed constant.
-  const scores = items.map((item) => item.score);
+  const scores = effectiveItems.map((item) => item.score);
   const minScore = scores.length > 0 ? Math.min(...scores) : Number.NEGATIVE_INFINITY;
   const maxScore = scores.length > 0 ? Math.max(...scores) : Number.POSITIVE_INFINITY;
   const halfScreenWorldX = viewportWidth / 2 / camera.zoom;
   const minCenterX = minScore - halfScreenWorldX;
   const maxCenterX = maxScore + halfScreenWorldX;
 
-  const maxVoterCount = Math.max(1, ...items.map((item) => item.voterCount));
+  const maxVoterCount = Math.max(1, ...effectiveItems.map((item) => item.voterCount));
   const maxWorldY = Math.log10(maxVoterCount);
   const halfScreenWorldY = viewportHeight / 2 / cameraY.zoomY;
   const minCenterY = 0 - halfScreenWorldY;
@@ -264,6 +294,23 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   };
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    const targetItemId = (event.target as HTMLElement).dataset.itemId;
+    if (
+      activePointers.current.size === 0 &&
+      votingPointerId.current === null &&
+      targetItemId !== undefined &&
+      targetItemId === focusedItemId &&
+      isItemVotable(isLoggedIn, votes[targetItemId] !== undefined)
+    ) {
+      // Grabbing the focused, votable item itself - a vote drag, not a pan.
+      // Pointer capture is deliberately deferred to handlePointerMove, for
+      // the same reason panning defers it below: capturing immediately
+      // would retarget the click a plain tap ends with away from the dot.
+      votingPointerId.current = event.pointerId;
+      voteDragStartClientX.current = event.clientX;
+      return;
+    }
+
     activePointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
 
     if (activePointers.current.size === 1) {
@@ -287,6 +334,25 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.pointerId === votingPointerId.current) {
+      if (focusedItemId === null || voteDragStartClientX.current === null) {
+        return;
+      }
+      const rawDeltaPx = event.clientX - voteDragStartClientX.current;
+      // Same "has this genuinely moved yet" guard panning uses - a plain
+      // tap on the already-focused dot should not pop up a "+0" preview.
+      if (voteDrag !== null || Math.abs(rawDeltaPx) >= DRAG_THRESHOLD_PX) {
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+        const rawDeltaScore = rawDeltaPx / camera.zoom;
+        const clampedDelta = Math.max(
+          -MAX_VOTE_MAGNITUDE,
+          Math.min(MAX_VOTE_MAGNITUDE, Math.round(rawDeltaScore)),
+        );
+        setVoteDrag({ itemId: focusedItemId, delta: clampedDelta });
+      }
+      return;
+    }
+
     if (!activePointers.current.has(event.pointerId)) {
       return;
     }
@@ -348,6 +414,20 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   };
 
   const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.pointerId === votingPointerId.current) {
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
+      // Releasing does not vote (rule R9) - the drag becomes a pending
+      // preview with a Submit button, unless it never crossed the drag
+      // threshold at all (voteDrag stayed null - just a tap).
+      if (voteDrag !== null) {
+        setPendingVote(voteDrag);
+      }
+      setVoteDrag(null);
+      votingPointerId.current = null;
+      voteDragStartClientX.current = null;
+      return;
+    }
+
     event.currentTarget.releasePointerCapture?.(event.pointerId);
     activePointers.current.delete(event.pointerId);
     endPanIfActive(event.clientX, event.clientY);
@@ -398,7 +478,7 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   }
 
   const visibleItems = filterByVisibleRange(
-    items,
+    effectiveItems,
     visibleMinWorld - bufferWorldWidth,
     visibleMaxWorld + bufferWorldWidth,
   );
@@ -431,7 +511,11 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
     };
   });
   const cells = sampleGrid(gridItems, compareGridItems);
-  const hoveredCell = cells.find((cell) => cell.representative.item.id === hoveredItemId);
+  // The focused item's card stays visible even when it isn't hovered
+  // (product spec section 3: it "shows its name and current score") -
+  // hovering something else still takes priority.
+  const cardTargetId = hoveredItemId ?? focusedItemId;
+  const cardCell = cells.find((cell) => cell.representative.item.id === cardTargetId);
 
   const cellRenderData = cells.map(({ representative, count }) => ({
     representative,
@@ -464,7 +548,16 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   const shownLabelIds = declutterLabels(labelCandidates, labelCandidates);
 
   const handleDotSelect = (item: Item) => {
-    const targetCamera = computeFocusCamera(item, items, viewportWidth);
+    // Switching focus abandons any unsubmitted vote preview (nothing was
+    // cast - rule R9) - but re-clicking the item already focused must not
+    // wipe out a pending vote it's still showing.
+    if (item.id !== focusedItemId) {
+      setVoteDrag(null);
+      setPendingVote(null);
+    }
+    setFocusedItemId(item.id);
+
+    const targetCamera = computeFocusCamera(item, effectiveItems, viewportWidth);
     const targetCameraY: VerticalCamera = {
       centerY: Math.log10(Math.max(item.voterCount, 1)),
       // Focusing recentres vertically but keeps the current vertical zoom -
@@ -475,8 +568,47 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
     useCameraStore.getState().animateTo(targetCamera, targetCameraY);
   };
 
+  // Clicking empty space un-focuses whatever was focused - checked by
+  // identity rather than e.g. stopping propagation on the dot, so a click
+  // that bubbles up from a dot (or its label) is correctly told apart from
+  // one that landed directly on the background.
+  const handleBackgroundClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget) {
+      return;
+    }
+    setFocusedItemId(null);
+    setVoteDrag(null);
+    setPendingVote(null);
+  };
+
+  const cardVote = (() => {
+    if (!cardCell) {
+      return undefined;
+    }
+    const itemId = cardCell.representative.item.id;
+    if (voteDrag && voteDrag.itemId === itemId) {
+      return { delta: voteDrag.delta, isPending: false, onSubmit: () => {} };
+    }
+    if (pendingVote && pendingVote.itemId === itemId) {
+      const delta = pendingVote.delta;
+      return {
+        delta,
+        isPending: true,
+        onSubmit: () => {
+          const item = effectiveItems.find((candidate) => candidate.id === itemId);
+          if (item) {
+            useVoteStore.getState().castVote(itemId, item.score, item.voterCount, delta);
+          }
+          setPendingVote(null);
+        },
+      };
+    }
+    return undefined;
+  })();
+
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: keyboard access to the map is tracked as Stage 1 work (docs/05-supporting-features.md, decision S6), not built yet.
+    // biome-ignore lint/a11y/useKeyWithClickEvents: same as above - S6 covers un-focusing too.
     <div
       ref={viewportRef}
       data-testid="world-viewport"
@@ -486,6 +618,7 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
       onDragStart={(event) => event.preventDefault()}
+      onClick={handleBackgroundClick}
     >
       {/* The ruler: fixed screen positions, unaffected by worldContentRef's
           live-drag transform, so panning never drags these away - only the
@@ -553,16 +686,15 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
         {cellRenderData.map(({ representative, count, sizePx, opacity }) => (
           <ItemDot
             key={`${representative.cellCol}:${representative.cellRow}`}
+            itemId={representative.item.id}
             screenX={representative.screenX}
             screenY={representative.screenY}
             title={labelText(representative, count)}
             showLabel={shownLabelIds.has(representative.item.id)}
             sizePx={sizePx}
             opacity={opacity}
-            // hasVoted is always false for now - there is no voting yet
-            // (batch 7). The rule itself (R10/R11) is already correct: it
-            // just has nothing but "not voted" to apply it to so far.
-            isVotable={isItemVotable(isLoggedIn, false)}
+            isVotable={isItemVotable(isLoggedIn, votes[representative.item.id] !== undefined)}
+            isFocused={representative.item.id === focusedItemId}
             onHoverStart={() => setHoveredItemId(representative.item.id)}
             onHoverEnd={() =>
               setHoveredItemId((current) => (current === representative.item.id ? null : current))
@@ -571,11 +703,12 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
           />
         ))}
 
-        {hoveredCell && (
+        {cardCell && (
           <ItemCard
-            item={hoveredCell.representative.item}
-            screenX={hoveredCell.representative.screenX}
-            screenY={hoveredCell.representative.screenY}
+            item={cardCell.representative.item}
+            screenX={cardCell.representative.screenX}
+            screenY={cardCell.representative.screenY}
+            vote={cardVote}
           />
         )}
       </div>

@@ -1,7 +1,8 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Item } from "../../../data/mockItems";
 import { useAuthStore } from "../../auth/authStore";
+import { useVoteStore } from "../../vote/voteStore";
 import { useCameraStore } from "../cameraStore";
 import { WorldViewport } from "../WorldViewport";
 
@@ -17,6 +18,7 @@ beforeEach(() => {
     viewportHeight: 800,
   });
   useAuthStore.setState({ username: null });
+  useVoteStore.setState({ votes: {}, settlingScores: {} });
 });
 
 describe("WorldViewport", () => {
@@ -504,6 +506,134 @@ describe("WorldViewport", () => {
     it("pins the ground line and grid to the bottom/left edges of the viewport, not the world", () => {
       render(<WorldViewport items={items} />);
       expect(screen.getByTestId("world-axis")).toHaveClass("bottom-0");
+    });
+  });
+
+  describe("drag to vote (batch 7)", () => {
+    const items: Item[] = [
+      { id: "a", title: "Alpha", score: 20, voterCount: 100, order: 0, tags: [] },
+    ];
+
+    // Every test here focuses the item with a plain click first, which also
+    // triggers the real animateTo - mocked for the same reason the
+    // "item cards and focusing" tests mock it: jsdom's requestAnimationFrame
+    // timestamps never line up with performance.now(), so the unmocked
+    // implementation would start a loop that never finishes and leaks into
+    // later tests.
+    beforeEach(() => {
+      vi.spyOn(useCameraStore.getState(), "animateTo").mockImplementation(() => {});
+    });
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("does not let a logged-out visitor start a vote drag - it pans instead (rule R11)", () => {
+      render(<WorldViewport items={items} />);
+      fireEvent.click(screen.getByTestId("item-dot"));
+      const dot = screen.getByTestId("item-dot");
+      const centerBefore = useCameraStore.getState().camera.center;
+
+      fireEvent.pointerDown(dot, { pointerId: 1, clientX: 580 });
+      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 620 });
+      fireEvent.pointerUp(dot, { pointerId: 1, clientX: 620 });
+
+      expect(screen.queryByTestId("vote-preview")).not.toBeInTheDocument();
+      // Fell through to the ordinary pan gesture instead of voting.
+      expect(useCameraStore.getState().camera.center).not.toBe(centerBefore);
+    });
+
+    it("previews a live vote amount while dragging the focused, logged-in item", () => {
+      useAuthStore.setState({ username: "Alice" });
+      render(<WorldViewport items={items} />);
+      fireEvent.click(screen.getByTestId("item-dot"));
+      const dot = screen.getByTestId("item-dot");
+
+      // zoom is 4: dragging 40px right is 10 world units, i.e. +10 score.
+      fireEvent.pointerDown(dot, { pointerId: 1, clientX: 580 });
+      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 620 });
+
+      expect(screen.getByTestId("vote-preview")).toHaveTextContent("20 → 30");
+      expect(screen.queryByRole("button", { name: /submit/i })).not.toBeInTheDocument();
+      // Not cast until Submit, and the map must not have panned instead.
+      expect(useVoteStore.getState().hasVoted("a")).toBe(false);
+    });
+
+    it("clamps the drag to +-10 points, however far the pointer moves (rule R4)", () => {
+      useAuthStore.setState({ username: "Alice" });
+      render(<WorldViewport items={items} />);
+      fireEvent.click(screen.getByTestId("item-dot"));
+      const dot = screen.getByTestId("item-dot");
+
+      fireEvent.pointerDown(dot, { pointerId: 1, clientX: 580 });
+      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 5000 });
+
+      expect(screen.getByTestId("vote-preview")).toHaveTextContent("20 → 30");
+    });
+
+    it("does not cast the vote on release - a Submit button appears instead (rule R9)", () => {
+      useAuthStore.setState({ username: "Alice" });
+      render(<WorldViewport items={items} />);
+      fireEvent.click(screen.getByTestId("item-dot"));
+      const dot = screen.getByTestId("item-dot");
+
+      fireEvent.pointerDown(dot, { pointerId: 1, clientX: 580 });
+      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 620 });
+      fireEvent.pointerUp(dot, { pointerId: 1, clientX: 620 });
+
+      expect(useVoteStore.getState().hasVoted("a")).toBe(false);
+      expect(screen.getByRole("button", { name: /submit vote: \+10/i })).toBeInTheDocument();
+    });
+
+    it("commits the vote on Submit and locks the item (grey, no longer draggable)", () => {
+      useAuthStore.setState({ username: "Alice" });
+      render(<WorldViewport items={items} />);
+      fireEvent.click(screen.getByTestId("item-dot"));
+      const dot = screen.getByTestId("item-dot");
+
+      fireEvent.pointerDown(dot, { pointerId: 1, clientX: 580 });
+      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 620 });
+      fireEvent.pointerUp(dot, { pointerId: 1, clientX: 620 });
+      fireEvent.click(screen.getByRole("button", { name: /submit vote: \+10/i }));
+
+      expect(useVoteStore.getState().hasVoted("a")).toBe(true);
+      expect(useVoteStore.getState().votes.a).toBe(10);
+      expect(screen.queryByRole("button", { name: /submit/i })).not.toBeInTheDocument();
+      expect(screen.getByTestId("item-dot")).not.toHaveClass("bg-blue-600");
+    });
+
+    it("starts fresh, not additive, when re-dragging before Submit", () => {
+      useAuthStore.setState({ username: "Alice" });
+      render(<WorldViewport items={items} />);
+      fireEvent.click(screen.getByTestId("item-dot"));
+      const dot = screen.getByTestId("item-dot");
+
+      fireEvent.pointerDown(dot, { pointerId: 1, clientX: 580 });
+      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 620 }); // +10
+      fireEvent.pointerUp(dot, { pointerId: 1, clientX: 620 });
+      expect(screen.getByTestId("vote-preview")).toHaveTextContent("20 → 30");
+
+      // A fresh drag, not one continuing from +10 - rule R4: always the
+      // full range, centred on the item.
+      fireEvent.pointerDown(dot, { pointerId: 2, clientX: 580 });
+      fireEvent.pointerMove(dot, { pointerId: 2, clientX: 560 }); // -5
+      expect(screen.getByTestId("vote-preview")).toHaveTextContent("20 → 15");
+    });
+
+    it("un-focuses (and abandons a pending vote) when the background is clicked", () => {
+      useAuthStore.setState({ username: "Alice" });
+      render(<WorldViewport items={items} />);
+      fireEvent.click(screen.getByTestId("item-dot"));
+      const dot = screen.getByTestId("item-dot");
+
+      fireEvent.pointerDown(dot, { pointerId: 1, clientX: 580 });
+      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 620 });
+      fireEvent.pointerUp(dot, { pointerId: 1, clientX: 620 });
+      expect(screen.getByRole("button", { name: /submit/i })).toBeInTheDocument();
+
+      fireEvent.click(screen.getByTestId("world-viewport"));
+
+      expect(screen.queryByTestId("item-card")).not.toBeInTheDocument();
+      expect(useVoteStore.getState().hasVoted("a")).toBe(false);
     });
   });
 });
