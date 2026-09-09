@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeNiceTicks } from "../ticks";
+import { computeNiceTicks, niceStep } from "../ticks";
 
 describe("computeNiceTicks", () => {
   it("returns evenly-spaced round numbers within the range", () => {
@@ -71,5 +71,24 @@ describe("computeNiceTicks", () => {
       const withoutMinStep = computeNiceTicks(0, 1000, 8);
       expect(withMinStep).toEqual(withoutMinStep);
     });
+  });
+});
+
+describe("niceStep", () => {
+  it("rounds up to the nearest of 1/2/5/10 times a power of ten", () => {
+    expect(niceStep(1)).toBe(1);
+    expect(niceStep(1.5)).toBe(2);
+    expect(niceStep(3)).toBe(5);
+    expect(niceStep(7)).toBe(10);
+    expect(niceStep(23)).toBe(50);
+  });
+
+  it("works below 1 too", () => {
+    expect(niceStep(0.03)).toBe(0.05);
+  });
+
+  it("returns 0 for a non-positive input, rather than erroring", () => {
+    expect(niceStep(0)).toBe(0);
+    expect(niceStep(-5)).toBe(0);
   });
 });

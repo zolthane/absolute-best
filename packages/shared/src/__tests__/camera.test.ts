@@ -53,6 +53,15 @@ describe("panCamera", () => {
     const panned = panCamera(camera, 123);
     expect(panned.zoom).toBe(camera.zoom);
   });
+
+  it("clamps the result to the given bounds rather than panning past them", () => {
+    expect(panCamera(camera, 10_000, -5, 5).center).toBe(-5);
+    expect(panCamera(camera, -10_000, -5, 5).center).toBe(5);
+  });
+
+  it("leaves panning unbounded when no bounds are given", () => {
+    expect(panCamera(camera, 10_000).center).toBeLessThan(-5);
+  });
 });
 
 describe("zoomCameraAtPoint", () => {
@@ -89,6 +98,12 @@ describe("zoomCameraAtPoint", () => {
 
     const zoomedOut = zoomCameraAtPoint(camera, viewportWidth, 500, 1e-10);
     expect(zoomedOut.zoom).toBe(MIN_ZOOM);
+  });
+
+  it("clamps the resulting centre to the given bounds", () => {
+    const zoomed = zoomCameraAtPoint(camera, viewportWidth, 0, 2, -1, 1);
+    expect(zoomed.center).toBeGreaterThanOrEqual(-1);
+    expect(zoomed.center).toBeLessThanOrEqual(1);
   });
 });
 

@@ -9,7 +9,12 @@ export {
   worldToScreen,
   zoomCameraAtPoint,
 } from "./camera";
-export { cameraFromUrlParams, cameraToUrlParams } from "./cameraUrl";
+export {
+  cameraFromUrlParams,
+  cameraToUrlParams,
+  verticalCameraFromUrlParams,
+  verticalCameraToUrlParams,
+} from "./cameraUrl";
 export { fitCameraToItems } from "./entryView";
 export { computeFocusCamera } from "./focus";
 export {
@@ -17,9 +22,19 @@ export {
   type GridCellAssignment,
   nextGridZoom,
   sampleGrid,
-  screenPositionToCellIndex,
   worldPositionToCellIndex,
 } from "./grid";
+export { declutterLabels, type LabelCandidate } from "./labelDeclutter";
 export { logScale } from "./scale";
-export { computeNiceTicks } from "./ticks";
+export { computeNiceTicks, niceStep } from "./ticks";
+export {
+  clampZoomY,
+  interpolateVerticalCamera,
+  panCameraY,
+  screenToWorldY,
+  type VerticalCamera,
+  worldToScreenY,
+  zoomCameraAtPointY,
+} from "./verticalCamera";
+export { fitVerticalCameraToItems, minZoomYForItems } from "./verticalEntryView";
 export { filterByVisibleRange, type ScoredItem } from "./visibleRange";

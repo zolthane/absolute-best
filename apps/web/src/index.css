@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 /* Minimal shadcn/ui theme tokens - only what the components actually in use
-   (Card) reference. Add more as later batches bring in more components,
-   rather than pre-defining the full shadcn palette now. */
+   reference. Add more as later batches bring in more components, rather
+   than pre-defining the full shadcn palette now. */
 @theme {
   --color-card: #ffffff;
   --color-card-foreground: #171717;
@@ -10,6 +10,11 @@
   --color-muted-foreground: #737373;
   --color-foreground: #171717;
   --color-border: #e5e5e5;
+  --color-background: #ffffff;
+  --color-input: #e5e5e5;
+  --color-ring: #a3a3a3;
+  --color-primary: #171717;
+  --color-primary-foreground: #ffffff;
 }
 
 @layer base {

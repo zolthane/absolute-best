@@ -27,7 +27,11 @@ export function ItemCard({ item, screenX, screenY }: ItemCardProps) {
   return (
     <Card
       data-testid="item-card"
-      className="pointer-events-none absolute shadow-lg"
+      // z-20: must beat ItemDot's label (z-10) - without an explicit
+      // z-index a positioned sibling with one always wins the stack
+      // regardless of DOM order, so the card was rendering under a nearby
+      // item's name.
+      className="pointer-events-none absolute z-20 shadow-lg"
       style={{
         left: screenX,
         top: screenY,

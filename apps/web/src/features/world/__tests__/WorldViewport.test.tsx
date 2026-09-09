@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Item } from "../../../data/mockItems";
+import { useAuthStore } from "../../auth/authStore";
 import { useCameraStore } from "../cameraStore";
 import { WorldViewport } from "../WorldViewport";
 
@@ -9,7 +10,13 @@ import { WorldViewport } from "../WorldViewport";
 // wires pointer events through to the camera store correctly.
 
 beforeEach(() => {
-  useCameraStore.setState({ camera: { center: 0, zoom: 4 }, viewportWidth: 1000 });
+  useCameraStore.setState({
+    camera: { center: 0, zoom: 4 },
+    cameraY: { centerY: 0, zoomY: 100 },
+    viewportWidth: 1000,
+    viewportHeight: 800,
+  });
+  useAuthStore.setState({ username: null });
 });
 
 describe("WorldViewport", () => {
@@ -61,7 +68,7 @@ describe("WorldViewport", () => {
     fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 460 });
 
     expect(screen.getByTestId("world-content")).toHaveStyle({
-      transform: "translateX(-40px)",
+      transform: "translate(-40px, 0px)",
     });
   });
 
@@ -141,18 +148,17 @@ describe("WorldViewport", () => {
       expect(screen.getByTestId("item-dot")).toHaveStyle({ left: "580px" });
     });
 
-    it("positions the single most-voted item at the top of its headroom", () => {
+    it("positions a dot at the screen location of its (log) voter count", () => {
       const items: Item[] = [
         { id: "1", title: "Solo", score: 0, voterCount: 100, order: 0, tags: [] },
       ];
       render(<WorldViewport items={items} />);
 
-      const axisTopPx = 0.8 * window.innerHeight;
-      const maxDotHeightAboveAxis = axisTopPx * 0.9;
-      const expectedScreenY = axisTopPx - maxDotHeightAboveAxis;
-
+      // cameraY is { centerY: 0, zoomY: 100 }, viewportHeight 800: axisTopPx
+      // = 0.8*800 = 640. worldY = log10(100) = 2, so
+      // screenY = 640 - (2-0)*100 = 440.
       const actualScreenY = Number.parseFloat(screen.getByTestId("item-dot").style.top);
-      expect(actualScreenY).toBeCloseTo(expectedScreenY, 9);
+      expect(actualScreenY).toBeCloseTo(440, 9);
     });
 
     it("does not crash or misplace an item with zero voters", () => {
@@ -174,6 +180,23 @@ describe("WorldViewport", () => {
       render(<WorldViewport items={items} />);
 
       expect(screen.getAllByTestId("item-dot")).toHaveLength(1);
+    });
+  });
+
+  describe("vote-state colour (batch 6)", () => {
+    const items: Item[] = [
+      { id: "a", title: "Alpha", score: 0, voterCount: 10, order: 0, tags: [] },
+    ];
+
+    it("is locked (not blue) for a logged-out visitor - rule R11", () => {
+      render(<WorldViewport items={items} />);
+      expect(screen.getByTestId("item-dot")).not.toHaveClass("bg-blue-600");
+    });
+
+    it("is votable (blue) for a logged-in user - rule R10", () => {
+      useAuthStore.setState({ username: "Alice" });
+      render(<WorldViewport items={items} />);
+      expect(screen.getByTestId("item-dot")).toHaveClass("bg-blue-600");
     });
   });
 
@@ -209,7 +232,12 @@ describe("WorldViewport", () => {
       expect(screen.getAllByTestId("item-dot")).toHaveLength(2);
     });
 
-    it("shows a label only for a dot that is alone in its cell", () => {
+    it("shows a plain label for a lone item and a '+N' label for a crowded cell", () => {
+      // Batch 6b: a crowded cell now gets a label too (its representative's
+      // name plus how many more it stands for) - otherwise a group that can
+      // never be split by zoom (an exact tie on both score and voter count,
+      // as some of the realistic mock data turned out to have) would be
+      // permanently silent, which is exactly what was reported as a bug.
       const alone: Item[] = [
         { id: "a", title: "Alpha", score: 0, voterCount: 10, order: 0, tags: [] },
       ];
@@ -222,7 +250,7 @@ describe("WorldViewport", () => {
         { id: "b", title: "Beta", score: 3, voterCount: 100, order: 1, tags: [] },
       ];
       render(<WorldViewport items={crowded} />);
-      expect(screen.queryByTestId("item-label")).not.toBeInTheDocument();
+      expect(screen.getByTestId("item-label")).toHaveTextContent("Alpha +1");
     });
 
     it("draws a larger dot for a more crowded cell than for a lone item", () => {
@@ -305,7 +333,7 @@ describe("WorldViewport", () => {
       expect(screen.queryByTestId("item-card")).not.toBeInTheDocument();
     });
 
-    it("focuses the clicked item by animating the camera to centre it", () => {
+    it("focuses the clicked item by animating the camera to centre it, both horizontally and vertically", () => {
       // The glide itself (eased, not instant) is exhaustively covered by
       // interpolateCamera's own tests in packages/shared, and running the
       // animation for real depends on requestAnimationFrame timestamps
@@ -324,8 +352,10 @@ describe("WorldViewport", () => {
       fireEvent.click(screen.getByTestId("item-dot"));
 
       expect(animateTo).toHaveBeenCalledTimes(1);
-      const target = animateTo.mock.calls[0]?.[0];
+      const [target, targetY] = animateTo.mock.calls[0] ?? [];
       expect(target?.center).toBe(35);
+      // voterCount is 100: log10(100) = 2.
+      expect(targetY?.centerY).toBeCloseTo(2, 9);
       animateTo.mockRestore();
     });
 
@@ -338,6 +368,142 @@ describe("WorldViewport", () => {
 
       expect(window.location.search).toContain("c=12.5");
       expect(window.location.search).toContain("z=8");
+    });
+  });
+
+  describe("vertical camera and label decluttering (batch 6b)", () => {
+    it("pans the vertical camera by exactly the dragged distance on a single-pointer drag", () => {
+      render(<WorldViewport />);
+      const viewport = screen.getByTestId("world-viewport");
+
+      fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 500, clientY: 400 });
+      fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 500, clientY: 440 });
+      fireEvent.pointerUp(viewport, { pointerId: 1, clientX: 500, clientY: 440 });
+
+      // cameraY.zoomY is 100: dragging 40px down must move centerY by 40/100.
+      expect(useCameraStore.getState().cameraY.centerY).toBeCloseTo(0.4, 9);
+    });
+
+    it("zooms the vertical camera in on the wheel, alongside the horizontal one", () => {
+      render(<WorldViewport />);
+      const viewport = screen.getByTestId("world-viewport");
+      const before = useCameraStore.getState().cameraY.zoomY;
+
+      fireEvent.wheel(viewport, { deltaY: -100, clientX: 500, clientY: 400 });
+
+      expect(useCameraStore.getState().cameraY.zoomY).toBeGreaterThan(before);
+    });
+
+    it("never zooms the vertical camera out past the point where the whole data range fits", () => {
+      const items: Item[] = [
+        { id: "a", title: "A", score: 0, voterCount: 1000, order: 0, tags: [] },
+      ];
+      render(<WorldViewport items={items} />);
+      const viewport = screen.getByTestId("world-viewport");
+
+      // A huge positive deltaY asks for a drastic zoom-out.
+      fireEvent.wheel(viewport, { deltaY: 100_000, clientX: 500, clientY: 400 });
+
+      // viewportHeight is 800 (set in beforeEach); minZoomYForItems([1000], 800)
+      // is the floor - there is nothing beyond a 1000-voter item to show.
+      const decades = Math.max(Math.log10(1000), 1);
+      const minZoomY = 800 / (decades * 1.1);
+      expect(useCameraStore.getState().cameraY.zoomY).toBeGreaterThanOrEqual(minZoomY);
+    });
+
+    it("never pans further than half a screen past the last item, horizontally", () => {
+      const items: Item[] = [{ id: "a", title: "A", score: 0, voterCount: 10, order: 0, tags: [] }];
+      render(<WorldViewport items={items} />);
+      const viewport = screen.getByTestId("world-viewport");
+
+      fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 500 });
+      fireEvent.pointerMove(viewport, { pointerId: 1, clientX: -5000 });
+      fireEvent.pointerUp(viewport, { pointerId: 1, clientX: -5000 });
+
+      // viewportWidth 1000, zoom 4: half a screen is (1000/2)/4 = 125 world
+      // units past the only item's score of 0.
+      expect(useCameraStore.getState().camera.center).toBeCloseTo(125, 9);
+    });
+
+    it("never pans further than half a screen past the top item, vertically", () => {
+      const items: Item[] = [{ id: "a", title: "A", score: 0, voterCount: 10, order: 0, tags: [] }];
+      render(<WorldViewport items={items} />);
+      const viewport = screen.getByTestId("world-viewport");
+
+      fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 500, clientY: 400 });
+      fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 500, clientY: 6000 });
+      fireEvent.pointerUp(viewport, { pointerId: 1, clientX: 500, clientY: 6000 });
+
+      // viewportHeight 800, zoomY 100: half a screen is (800/2)/100 = 4 world
+      // units past the only item's voter count (10 -> worldY 1), so the
+      // ceiling is 1 + 4 = 5.
+      expect(useCameraStore.getState().cameraY.centerY).toBeCloseTo(5, 9);
+    });
+
+    it("hides the lower-priority label when two lone items' labels would collide", () => {
+      // Chosen so both fall one grid row apart (so neither dot merges with
+      // the other) yet land within a fraction of a pixel of the same screen
+      // position - guaranteeing their labels overlap. See labelDeclutter.ts
+      // for the general rule; this only proves the component wires real
+      // item data into it.
+      const items: Item[] = [
+        { id: "less-voted", title: "Less Voted", score: 0, voterCount: 1584, order: 0, tags: [] },
+        { id: "more-voted", title: "More Voted", score: 0, voterCount: 1585, order: 1, tags: [] },
+      ];
+      render(<WorldViewport items={items} />);
+
+      expect(screen.getAllByTestId("item-dot")).toHaveLength(2);
+      const labels = screen.getAllByTestId("item-label");
+      expect(labels).toHaveLength(1);
+      expect(labels[0]).toHaveTextContent("More Voted");
+    });
+  });
+
+  describe("axis ruler (batch 6b)", () => {
+    // A wide score range so the pan below stays far inside the pan-bound
+    // clamp - this test is about the ruler, not that boundary.
+    const items: Item[] = [
+      { id: "a", title: "A", score: -1000, voterCount: 10, order: 0, tags: [] },
+      { id: "b", title: "B", score: 1000, voterCount: 10, order: 1, tags: [] },
+    ];
+
+    it("keeps X tick marks at the same screen position after panning, and relabels them instead", () => {
+      render(<WorldViewport items={items} />);
+      const positionsBefore = screen.getAllByTestId("world-tick").map((tick) => tick.style.left);
+      const labelsBefore = screen.getAllByTestId("world-tick").map((tick) => tick.textContent);
+
+      const viewport = screen.getByTestId("world-viewport");
+      fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 500 });
+      fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 100 });
+      fireEvent.pointerUp(viewport, { pointerId: 1, clientX: 100 });
+
+      const positionsAfter = screen.getAllByTestId("world-tick").map((tick) => tick.style.left);
+      const labelsAfter = screen.getAllByTestId("world-tick").map((tick) => tick.textContent);
+
+      expect(positionsAfter).toEqual(positionsBefore);
+      expect(labelsAfter).not.toEqual(labelsBefore);
+    });
+
+    it("keeps Y tick marks at the same screen position after a vertical pan, and relabels them instead", () => {
+      render(<WorldViewport items={items} />);
+      const positionsBefore = screen.getAllByTestId("world-tick-y").map((tick) => tick.style.top);
+      const labelsBefore = screen.getAllByTestId("world-tick-y").map((tick) => tick.textContent);
+
+      const viewport = screen.getByTestId("world-viewport");
+      fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 500, clientY: 400 });
+      fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 500, clientY: 250 });
+      fireEvent.pointerUp(viewport, { pointerId: 1, clientX: 500, clientY: 250 });
+
+      const positionsAfter = screen.getAllByTestId("world-tick-y").map((tick) => tick.style.top);
+      const labelsAfter = screen.getAllByTestId("world-tick-y").map((tick) => tick.textContent);
+
+      expect(positionsAfter).toEqual(positionsBefore);
+      expect(labelsAfter).not.toEqual(labelsBefore);
+    });
+
+    it("pins the ground line and grid to the bottom/left edges of the viewport, not the world", () => {
+      render(<WorldViewport items={items} />);
+      expect(screen.getByTestId("world-axis")).toHaveClass("bottom-0");
     });
   });
 });

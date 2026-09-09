@@ -2,9 +2,14 @@ interface ItemDotProps {
   screenX: number;
   screenY: number;
   title: string;
-  count: number;
+  // Whether a label should be drawn at all: the caller decides this (only a
+  // dot alone in its cell is ever eligible, and even then only if showing
+  // its label wouldn't collide with another one - see labelDeclutter.ts),
+  // not this component.
+  showLabel: boolean;
   sizePx: number;
   opacity: number;
+  isVotable: boolean;
   onHoverStart: () => void;
   onHoverEnd: () => void;
   onSelect: () => void;
@@ -17,9 +22,10 @@ export function ItemDot({
   screenX,
   screenY,
   title,
-  count,
+  showLabel,
   sizePx,
   opacity,
+  isVotable,
   onHoverStart,
   onHoverEnd,
   onSelect,
@@ -30,16 +36,24 @@ export function ItemDot({
       {/* biome-ignore lint/a11y/useKeyWithClickEvents: same as above - S6 covers this dot too. */}
       <div
         data-testid="item-dot"
-        className="-translate-x-1/2 -translate-y-1/2 absolute cursor-pointer rounded-full bg-black"
+        // Rules R10/R11: blue = votable, grey = locked (logged out, or
+        // already voted once batch 7 exists).
+        className={`-translate-x-1/2 -translate-y-1/2 absolute cursor-pointer rounded-full ${
+          isVotable ? "bg-blue-600" : "bg-neutral-500"
+        }`}
         style={{ left: screenX, top: screenY, width: sizePx, height: sizePx, opacity }}
         onMouseEnter={onHoverStart}
         onMouseLeave={onHoverEnd}
         onClick={onSelect}
       />
-      {count === 1 && (
+      {showLabel && (
         <span
           data-testid="item-label"
-          className="-translate-x-1/2 absolute whitespace-nowrap text-[10px] text-neutral-700"
+          // A solid backdrop and a z-index above the plain dots: two lone
+          // items with close voter counts can sit only a few pixels apart
+          // vertically, and without this, a nearby dot bled into the text
+          // (or the text bled into it) and made both hard to read.
+          className="-translate-x-1/2 absolute z-10 whitespace-nowrap rounded-sm bg-white/90 px-0.5 text-[10px] text-neutral-700"
           style={{ left: screenX, top: screenY + sizePx / 2 + 4 }}
         >
           {title}

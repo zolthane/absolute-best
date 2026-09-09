@@ -13,8 +13,7 @@ export interface Item {
   tags: string[];
 }
 
-const ITEM_COUNT = 200;
-const SCORE_RANGE = 80;
+const ITEM_COUNT = 500;
 const MAX_VOTER_LOG_EXPONENT = 3.5; // up to roughly 3,162 voters
 const TAGS_PER_ITEM = 2;
 
@@ -35,6 +34,99 @@ const TAG_POOL = [
   "Foreign",
 ];
 
+// Word banks for invented titles - plainly fictional, not real film names,
+// people or places (see CLAUDE.md's mock-data rule).
+const ADJECTIVES = [
+  "Silent",
+  "Crimson",
+  "Iron",
+  "Velvet",
+  "Hidden",
+  "Broken",
+  "Golden",
+  "Midnight",
+  "Forgotten",
+  "Wandering",
+  "Electric",
+  "Frozen",
+  "Scarlet",
+  "Ancient",
+  "Restless",
+  "Endless",
+  "Secret",
+  "Distant",
+  "Radiant",
+  "Lonely",
+];
+const CREATURES = [
+  "Elephant",
+  "Fox",
+  "Falcon",
+  "Wolf",
+  "Tiger",
+  "Sparrow",
+  "Bear",
+  "Serpent",
+  "Owl",
+  "Panther",
+  "Whale",
+  "Raven",
+  "Lion",
+  "Otter",
+  "Heron",
+  "Badger",
+  "Lynx",
+  "Swan",
+];
+const OBJECTS = [
+  "Compass",
+  "Lantern",
+  "Mirror",
+  "Anchor",
+  "Clock",
+  "Key",
+  "Letter",
+  "Bridge",
+  "Garden",
+  "Engine",
+  "Violin",
+  "Ladder",
+  "Umbrella",
+  "Locket",
+  "Map",
+  "Harbor",
+  "Orchard",
+  "Attic",
+];
+const HONORIFICS = [
+  "Captain",
+  "Duchess",
+  "General",
+  "Empress",
+  "Colonel",
+  "Baron",
+  "Admiral",
+  "Professor",
+  "Countess",
+  "Sergeant",
+];
+const INVENTED_SURNAMES = [
+  "Ashworth",
+  "Marlowe",
+  "Voss",
+  "Byrne",
+  "Halloway",
+  "Kestrel",
+  "Doyle",
+  "Renshaw",
+  "Callahan",
+  "Whitfield",
+  "Sorensen",
+  "Pemberton",
+  "Osgood",
+  "Fenwick",
+];
+
 // A fixed seed, not Math.random(): the map must look exactly the same on
 // every reload. Reshuffling placeholder items on refresh would make the
 // prototype feel broken, and would contradict the product spec's whole
@@ -53,6 +145,14 @@ function mulberry32(seed: number): () => number {
   };
 }
 
+function pick<T>(list: readonly T[], random: () => number): T {
+  const item = list[Math.floor(random() * list.length)];
+  if (item === undefined) {
+    throw new Error("pick() called with an empty list");
+  }
+  return item;
+}
+
 function pickTags(random: () => number): string[] {
   const pool = [...TAG_POOL];
   const picked: string[] = [];
@@ -63,25 +163,62 @@ function pickTags(random: () => number): string[] {
   return picked;
 }
 
+function generateTitle(random: () => number): string {
+  const pattern = Math.floor(random() * 3);
+  if (pattern === 0) {
+    return `${pick(ADJECTIVES, random)} ${pick(CREATURES, random)}`;
+  }
+  if (pattern === 1) {
+    return `The ${pick(ADJECTIVES, random)} ${pick(OBJECTS, random)}`;
+  }
+  return `${pick(HONORIFICS, random)} ${pick(INVENTED_SURNAMES, random)}`;
+}
+
+function generateUniqueTitle(random: () => number, usedTitles: Set<string>): string {
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const title = generateTitle(random);
+    if (!usedTitles.has(title)) {
+      usedTitles.add(title);
+      return title;
+    }
+  }
+  // The word banks give a few hundred combinations, so 50 attempts should
+  // never actually run out - this only guarantees the loop terminates.
+  const fallback = `${generateTitle(random)} ${usedTitles.size}`;
+  usedTitles.add(fallback);
+  return fallback;
+}
+
+// A score is the exact sum of `voterCount` individual votes (rules R1/R2),
+// so it can never exceed voterCount * 10 in either direction - a real item
+// cannot have a score of 80 from 2 voters. Each item gets its own
+// "popularity bias" (how much a typical voter likes or dislikes it), and
+// every simulated vote is that bias plus noise, clamped to the real -10..10
+// range - the same shape a genuine vote distribution would have.
+function generateScore(random: () => number, voterCount: number): number {
+  const bias = (random() * 2 - 1) * 10;
+  let score = 0;
+  for (let i = 0; i < voterCount; i++) {
+    const noise = (random() * 2 - 1) * 6;
+    score += Math.max(-10, Math.min(10, Math.round(bias + noise)));
+  }
+  return score;
+}
+
 function generateMockItems(): Item[] {
   const random = mulberry32(MOCK_DATA_SEED);
+  const usedTitles = new Set<string>();
 
   return Array.from({ length: ITEM_COUNT }, (_, index) => {
-    // score and voterCount are drawn independently, which is not actually
-    // possible in the real product: a score is a sum of votes, so it can
-    // never exceed voterCount * 10, and a nonzero score implies at least
-    // one voter (rule R5 - votes and voters are the same number). Real
-    // votes will enforce this automatically once they exist; this is
-    // Stage 0 mock data standing in for that, not modelling it.
-    const score = Math.round((random() * 2 - 1) * SCORE_RANGE);
     // Uniform in the exponent, not in the count itself, so most items land
     // low with a long tail of rarer, more-voted ones - and, conveniently,
     // an even-looking spread on the log-scaled Y axis that displays it.
     const voterCount = Math.round(10 ** (random() * MAX_VOTER_LOG_EXPONENT));
+    const score = generateScore(random, voterCount);
 
     return {
       id: `mock-${index + 1}`,
-      title: `Sample Film ${String(index + 1).padStart(3, "0")}`,
+      title: generateUniqueTitle(random, usedTitles),
       score,
       voterCount,
       order: index,

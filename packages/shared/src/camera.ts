@@ -31,31 +31,42 @@ export function screenToWorld(screenX: number, camera: Camera, viewportWidth: nu
   return (screenX - viewportWidth / 2) / camera.zoom + camera.center;
 }
 
-export function panCamera(camera: Camera, deltaScreenX: number): Camera {
-  return {
-    ...camera,
-    center: camera.center - deltaScreenX / camera.zoom,
-  };
+// `minCenter`/`maxCenter` default to unbounded, so every existing caller
+// that doesn't pass them keeps panning freely. Batch 6b adds real bounds -
+// the current data's extent plus half a screen's slack on each side, so
+// dragging can't reveal an unbounded sea of empty space (see WorldViewport,
+// which computes them fresh each render from the live data and viewport).
+export function panCamera(
+  camera: Camera,
+  deltaScreenX: number,
+  minCenter = Number.NEGATIVE_INFINITY,
+  maxCenter = Number.POSITIVE_INFINITY,
+): Camera {
+  const center = camera.center - deltaScreenX / camera.zoom;
+  return { ...camera, center: Math.min(maxCenter, Math.max(minCenter, center)) };
 }
 
 /**
  * Changes zoom by `zoomFactor` while keeping the world point currently under
  * `pointerScreenX` under that same screen position afterwards - the
  * "zoom towards the cursor" behaviour every map application relies on.
+ * `minCenter`/`maxCenter` are the same pan bounds panCamera takes.
  */
 export function zoomCameraAtPoint(
   camera: Camera,
   viewportWidth: number,
   pointerScreenX: number,
   zoomFactor: number,
+  minCenter = Number.NEGATIVE_INFINITY,
+  maxCenter = Number.POSITIVE_INFINITY,
 ): Camera {
   const worldAtPointer = screenToWorld(pointerScreenX, camera, viewportWidth);
   const zoom = clampZoom(camera.zoom * zoomFactor);
   const center = worldAtPointer - (pointerScreenX - viewportWidth / 2) / zoom;
-  return { center, zoom };
+  return { center: Math.min(maxCenter, Math.max(minCenter, center)), zoom };
 }
 
-function easeInOutCubic(t: number): number {
+export function easeInOutCubic(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
 }
 
