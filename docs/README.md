@@ -18,6 +18,7 @@ directly on GitHub. **You cannot break anything by editing them.**
 | 05 | [Supporting features](05-supporting-features.md) | Feedback, moderation, legal pages, share previews — everything that is not the map | ✅ Approved |
 | 10 | [Local setup](10-local-setup.md) | How to get your machine ready | Available now — a how-to, not a plan to approve |
 | 11 | [Git workflow](11-git-workflow.md) | Branch rules: `main` / `dev` / `feature/xy` | Active |
+| 12 | [Testing guide](12-testing-guide.md) | The exact commands for testing in a browser and on your phone | Available now — a how-to, not a plan to approve |
 | 99 | [Glossary](99-glossary.md) | Plain-language explanations of the technical words | Available now |
 
 Documents 01 and 03 are deliberately not written yet. Their content depends on the
