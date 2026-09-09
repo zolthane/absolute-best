@@ -31,7 +31,7 @@
 | 6 | Mock login | 2–3 | Log in; items turn blue; refresh keeps you logged in | [x] |
 | 7 | Drag to vote | 3–4 | Drag, preview, Submit — the item moves and locks | [x] |
 | 8 | Search | 2 | Type a name; fly to it | [x] |
-| 9 | Add an entry from a link | 2 | Paste a link twice; the second is refused as a duplicate | [ ] |
+| 9 | Add an entry from a link | 2 | Paste a link twice; the second is refused as a duplicate | [x] |
 | 10 | The living world | 2 | Watch items drift as fake people vote | [ ] |
 | 11 | Intro screen | 2–3 | The full first-run experience | [ ] |
 | 12 | End-to-end tests and polish | 3–4 | One command proves the whole journey works | [ ] |
@@ -444,13 +444,13 @@ rather than erroring.
 
 ## Batch 9 — Add an entry from a link
 
-- [ ] "New entry" button, visible only when logged in
-- [ ] Paste-a-link dialog
-- [ ] Mock resolver turning a link into a title, image and identifier — **the same link
+- [x] "New entry" button, visible only when logged in
+- [x] Paste-a-link dialog
+- [x] Mock resolver turning a link into a title, image and identifier — **the same link
       always produces the same result**
-- [ ] Duplicate detection: an existing identifier shows the existing item instead of
+- [x] Duplicate detection: an existing identifier shows the existing item instead of
       creating a second one
-- [ ] **No external service is contacted.** Wikidata comes at Stage 1
+- [x] **No external service is contacted.** Wikidata comes at Stage 1
 
 **Tests written:** the resolver is deterministic; duplicates are detected; a new item lands
 at score 0 with 0 voters.
@@ -463,6 +463,24 @@ at score 0 with 0 voters.
    second one.
 4. Paste a different address. A different item appears.
 5. Find your new item on the map — it should sit at 0 with no voters.
+
+**Done when:** tested and confirmed working.
+
+**Simplification, noted at the time:** the resolver's "image" is just confirmation the item
+gets the same universal placeholder every other item already does - Stage 0 has no real
+image for anything (see ItemCard's own comment), so nothing distinct was invented per entry.
+
+**Bug found and fixed during testing:** re-adding a link already voted on flew the camera to
+its stale score-0 starting position instead of its current one - the raw entriesStore record
+never reflects a vote (votes are applied only at render time, via effectiveItem). Fixed to
+use the item's current, vote-adjusted position instead.
+
+**Requested for later, deliberately not built now:** linking the card's title to its
+Wikipedia article. Every title right now, mock or added, is invented, so there is no real
+article to link to yet - this is what Stage 1 batch 17 ("Real content: Wikipedia and
+Wikidata") is for. Also flagged: linking out to a third-party service needs a quick
+compliance check before it ships, per this org's standing policy, even as a plain outbound
+link with no data sent.
 
 ---
 
