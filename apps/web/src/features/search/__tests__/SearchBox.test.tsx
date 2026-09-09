@@ -23,11 +23,11 @@ describe("SearchBox", () => {
   it("matches a partial, case-insensitive query against the real mock data", () => {
     // Uses the real mockItems set (like WorldViewport's own tests do for a
     // handful of cases) rather than a fixture, specifically to prove search
-    // and the map are looking at the same data - "Silent Fox" is one of the
-    // deterministic titles mockItems.ts's seeded generator always produces.
+    // and the map are looking at the same data - "Albert Einstein" is one of
+    // the curated real-world titles mockItems.ts always includes.
     render(<SearchBox />);
-    fireEvent.change(screen.getByLabelText("Search items"), { target: { value: "silent fox" } });
-    expect(screen.getByRole("button", { name: "Silent Fox" })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Search items"), { target: { value: "einstein" } });
+    expect(screen.getByRole("button", { name: "Albert Einstein" })).toBeInTheDocument();
   });
 
   it("shows a polite message rather than a blank box for a nonsense query", () => {
@@ -43,8 +43,8 @@ describe("SearchBox", () => {
     const animateTo = vi.spyOn(useCameraStore.getState(), "animateTo").mockImplementation(() => {});
     render(<SearchBox />);
 
-    fireEvent.change(screen.getByLabelText("Search items"), { target: { value: "silent fox" } });
-    fireEvent.click(screen.getByRole("button", { name: "Silent Fox" }));
+    fireEvent.change(screen.getByLabelText("Search items"), { target: { value: "einstein" } });
+    fireEvent.click(screen.getByRole("button", { name: "Albert Einstein" }));
 
     expect(animateTo).toHaveBeenCalledTimes(1);
     expect(useFocusStore.getState().focusedItemId).not.toBeNull();

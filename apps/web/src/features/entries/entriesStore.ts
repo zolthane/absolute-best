@@ -2,9 +2,9 @@ import { resolveLink } from "@teeter/shared";
 import { create } from "zustand";
 import type { Item } from "../../data/mockItems";
 
-// Comfortably past mockItems.ts's own 500 - order breaks a tie by "oldest
-// wins" (product spec Q3b), and every added entry should lose that tie to
-// any pre-existing item, never win it by coincidence.
+// Comfortably past mockItems.ts's own item count - order breaks a tie by
+// "oldest wins" (product spec Q3b), and every added entry should lose that
+// tie to any pre-existing item, never win it by coincidence.
 const NEW_ENTRY_ORDER_BASE = 1_000_000;
 
 interface EntriesState {
