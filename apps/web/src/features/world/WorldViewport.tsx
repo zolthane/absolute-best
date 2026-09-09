@@ -55,6 +55,11 @@ const AXIS_TOP_PERCENT = 80;
 // spacing is whatever a "nice" step (niceStep) comes closest to it.
 const RULER_TICK_SPACING_TARGET_PX = 96;
 
+// A tick this close to the top/bottom/left/right edge of the viewport is
+// skipped rather than drawn - its centred label would otherwise be clipped
+// in half by the viewport's own edge, as reported for the topmost Y tick.
+const TICK_EDGE_MARGIN_PX = 12;
+
 // Item dots are still rendered for a wider range than is actually visible -
 // roughly 2 extra screens each side - so that a live pan preview (see the
 // pointer handlers below) never drags a visible gap into view before the
@@ -371,7 +376,11 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   const pixelSpacingX = worldStepX * camera.zoom;
   const columnsX: number[] = [];
   for (let x = 0; x <= viewportWidth; x += pixelSpacingX) {
-    columnsX.push(x);
+    // Skips a column too close to the left/right edge - its centred label
+    // would otherwise be clipped in half by the viewport's own edge.
+    if (x >= TICK_EDGE_MARGIN_PX && x <= viewportWidth - TICK_EDGE_MARGIN_PX) {
+      columnsX.push(x);
+    }
   }
 
   // Same idea for Y, but the step stays a whole number of decades (product
@@ -381,7 +390,11 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   const pixelSpacingY = decadeStepY * cameraY.zoomY;
   const rowsY: number[] = [];
   for (let y = 0; y <= viewportHeight; y += pixelSpacingY) {
-    rowsY.push(y);
+    // Same edge guard as X, top and bottom - reported as the top-most voter
+    // count label being cut in half against the top of the screen.
+    if (y >= TICK_EDGE_MARGIN_PX && y <= viewportHeight - TICK_EDGE_MARGIN_PX) {
+      rowsY.push(y);
+    }
   }
 
   const visibleItems = filterByVisibleRange(
@@ -512,7 +525,7 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
             className="absolute bottom-0 flex -translate-x-1/2 flex-col items-center pb-1"
             style={{ left: x }}
           >
-            <span className="mb-1 font-semibold text-[10px] text-neutral-700">{value}</span>
+            <span className="mb-1 font-bold text-neutral-700 text-xs">{value}</span>
             <div className="h-2 w-px bg-neutral-400" />
           </div>
         );
@@ -529,7 +542,7 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
             style={{ top: y, left: 4 }}
           >
             <div className="h-px w-2 bg-neutral-400" />
-            <span className="font-semibold text-[10px] text-neutral-700">
+            <span className="font-bold text-neutral-700 text-xs">
               {formatVoterTickLabel(decade)}
             </span>
           </div>
