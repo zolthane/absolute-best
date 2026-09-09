@@ -23,7 +23,7 @@ import { type Item, mockItems } from "../../data/mockItems";
 import { useAuthStore } from "../auth/authStore";
 import { isItemVotable } from "../auth/voteState";
 import { effectiveItem, useVoteStore } from "../vote/voteStore";
-import { useCameraStore } from "./cameraStore";
+import { currentViewportSize, useCameraStore } from "./cameraStore";
 import { ItemCard } from "./ItemCard";
 import { ItemDot } from "./ItemDot";
 
@@ -99,6 +99,16 @@ const LABEL_HEIGHT_PX = 14;
 
 // Rule R4: a vote is always the full -10..10 range, centred on the item.
 const MAX_VOTE_MAGNITUDE = 10;
+
+// Screen pixels of drag per point of vote delta - deliberately independent
+// of camera.zoom (the map's own pan/zoom), which used to drive this: reached
+// +-10 only by dragging the full width of the screen at a typical zoomed-out
+// level, and on a narrow phone screen, the far end of that range could fall
+// outside the screen entirely. A fixed sensitivity keeps the whole gesture
+// within a comfortable, thumb-reachable distance regardless of zoom level or
+// screen size - the full +-10 range now takes at most 20*10 = 200px either
+// side of the start point.
+const VOTE_DRAG_PX_PER_POINT = 20;
 
 // On casting a vote, the vertical camera zooms out (if it needs to) so both
 // the item's old and new position - it moves up by one step of voterCount,
@@ -191,13 +201,26 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   // The viewport is assumed to fill the browser window (see App.tsx), so
   // window dimensions double as viewport dimensions - this sidesteps
   // getBoundingClientRect, which jsdom cannot measure in component tests.
+  // currentViewportSize (not window.innerWidth/innerHeight directly) and the
+  // extra visualViewport/orientationchange listeners exist for the same
+  // reason: a plain "resize" listener with window.innerWidth/innerHeight can
+  // report a stale size for a moment right after rotating on mobile -
+  // reported as the item card sometimes not showing, or the page getting
+  // stuck scrolled to a focused button.
   useEffect(() => {
     const handleResize = () => {
-      useCameraStore.getState().setViewportWidth(window.innerWidth);
-      useCameraStore.getState().setViewportHeight(window.innerHeight);
+      const { width, height } = currentViewportSize();
+      useCameraStore.getState().setViewportWidth(width);
+      useCameraStore.getState().setViewportHeight(height);
     };
     window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
+    window.addEventListener("orientationchange", handleResize);
+    window.visualViewport?.addEventListener("resize", handleResize);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      window.removeEventListener("orientationchange", handleResize);
+      window.visualViewport?.removeEventListener("resize", handleResize);
+    };
   }, []);
 
   // The item as it should actually be positioned/displayed: unchanged
@@ -373,7 +396,7 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
       // tap on the already-focused dot should not pop up a "+0" preview.
       if (voteDrag !== null || Math.abs(rawDeltaPx) >= DRAG_THRESHOLD_PX) {
         event.currentTarget.setPointerCapture?.(event.pointerId);
-        const rawDeltaScore = rawDeltaPx / camera.zoom;
+        const rawDeltaScore = rawDeltaPx / VOTE_DRAG_PX_PER_POINT;
         const clampedDelta = Math.max(
           -MAX_VOTE_MAGNITUDE,
           Math.min(MAX_VOTE_MAGNITUDE, Math.round(rawDeltaScore)),

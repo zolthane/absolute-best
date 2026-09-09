@@ -606,11 +606,11 @@ describe("WorldViewport", () => {
       fireEvent.click(screen.getByTestId("item-dot"));
       const dot = screen.getByTestId("item-dot");
 
-      // zoom is 4: dragging 40px right is 10 world units, i.e. +10 score.
+      // VOTE_DRAG_PX_PER_POINT is 20: dragging 60px right is +3.
       fireEvent.pointerDown(dot, { pointerId: 1, clientX: 580 });
-      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 620 });
+      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 640 });
 
-      expect(screen.getByTestId("vote-preview")).toHaveTextContent("20 → 30");
+      expect(screen.getByTestId("vote-preview")).toHaveTextContent("20 → 23");
       expect(screen.queryByRole("button", { name: /submit/i })).not.toBeInTheDocument();
       // Not cast until Submit, and the map must not have panned instead.
       expect(useVoteStore.getState().hasVoted("a")).toBe(false);
@@ -628,6 +628,24 @@ describe("WorldViewport", () => {
       expect(screen.getByTestId("vote-preview")).toHaveTextContent("20 → 30");
     });
 
+    it("needs the same drag distance to reach +10 regardless of the map's zoom level", () => {
+      // Reported bug: this used to be tied to camera.zoom (the map's own
+      // pan/zoom), so reaching +-10 could take the full width of the screen
+      // at a typical zoomed-out level - worse on a narrow phone screen,
+      // where the far end of that range could fall outside the screen
+      // entirely. It must now take the exact same drag at any zoom.
+      useAuthStore.setState({ username: "Alice" });
+      useCameraStore.setState({ camera: { center: 0, zoom: 0.1 } });
+      render(<WorldViewport items={items} />);
+      fireEvent.click(screen.getByTestId("item-dot"));
+      const dot = screen.getByTestId("item-dot");
+
+      fireEvent.pointerDown(dot, { pointerId: 1, clientX: 580 });
+      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 780 });
+
+      expect(screen.getByTestId("vote-preview")).toHaveTextContent("20 → 30");
+    });
+
     it("does not cast the vote on release - a Submit button appears instead (rule R9)", () => {
       useAuthStore.setState({ username: "Alice" });
       render(<WorldViewport items={items} />);
@@ -635,8 +653,8 @@ describe("WorldViewport", () => {
       const dot = screen.getByTestId("item-dot");
 
       fireEvent.pointerDown(dot, { pointerId: 1, clientX: 580 });
-      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 620 });
-      fireEvent.pointerUp(dot, { pointerId: 1, clientX: 620 });
+      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 780 });
+      fireEvent.pointerUp(dot, { pointerId: 1, clientX: 780 });
 
       expect(useVoteStore.getState().hasVoted("a")).toBe(false);
       expect(screen.getByRole("button", { name: /submit vote: \+10/i })).toBeInTheDocument();
@@ -649,8 +667,8 @@ describe("WorldViewport", () => {
       const dot = screen.getByTestId("item-dot");
 
       fireEvent.pointerDown(dot, { pointerId: 1, clientX: 580 });
-      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 620 });
-      fireEvent.pointerUp(dot, { pointerId: 1, clientX: 620 });
+      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 780 });
+      fireEvent.pointerUp(dot, { pointerId: 1, clientX: 780 });
       fireEvent.click(screen.getByRole("button", { name: /submit vote: \+10/i }));
 
       expect(useVoteStore.getState().hasVoted("a")).toBe(true);
@@ -681,8 +699,8 @@ describe("WorldViewport", () => {
       });
 
       fireEvent.pointerDown(dot, { pointerId: 1, clientX: 580 });
-      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 620 });
-      fireEvent.pointerUp(dot, { pointerId: 1, clientX: 620 });
+      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 780 });
+      fireEvent.pointerUp(dot, { pointerId: 1, clientX: 780 });
 
       const animateTo = vi.mocked(useCameraStore.getState().animateTo);
       animateTo.mockClear();
@@ -704,14 +722,14 @@ describe("WorldViewport", () => {
       const dot = screen.getByTestId("item-dot");
 
       fireEvent.pointerDown(dot, { pointerId: 1, clientX: 580 });
-      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 620 }); // +10
-      fireEvent.pointerUp(dot, { pointerId: 1, clientX: 620 });
+      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 780 }); // +10
+      fireEvent.pointerUp(dot, { pointerId: 1, clientX: 780 });
       expect(screen.getByTestId("vote-preview")).toHaveTextContent("20 → 30");
 
       // A fresh drag, not one continuing from +10 - rule R4: always the
       // full range, centred on the item.
       fireEvent.pointerDown(dot, { pointerId: 2, clientX: 580 });
-      fireEvent.pointerMove(dot, { pointerId: 2, clientX: 560 }); // -5
+      fireEvent.pointerMove(dot, { pointerId: 2, clientX: 480 }); // -5
       expect(screen.getByTestId("vote-preview")).toHaveTextContent("20 → 15");
     });
 
@@ -763,8 +781,8 @@ describe("WorldViewport", () => {
       const dot = screen.getAllByTestId("item-dot")[0] as HTMLElement;
 
       fireEvent.pointerDown(dot, { pointerId: 1, clientX: 580 });
-      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 620 });
-      fireEvent.pointerUp(dot, { pointerId: 1, clientX: 620 });
+      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 780 });
+      fireEvent.pointerUp(dot, { pointerId: 1, clientX: 780 });
       // Simulates the pointer landing over the OTHER item's dot on release -
       // exactly what used to make the Submit button vanish.
       fireEvent.mouseEnter(screen.getAllByTestId("item-dot")[1] as HTMLElement);
