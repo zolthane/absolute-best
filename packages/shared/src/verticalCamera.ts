@@ -1,3 +1,5 @@
+import { easeInOutCubic } from "./camera";
+
 /**
  * The vertical counterpart to Camera (camera.ts): describes what slice of
  * the voter-count axis is visible. Kept as its own type rather than folded
@@ -47,9 +49,17 @@ export function screenToWorldY(
 /**
  * Moves the vertical camera by a screen-pixel drag delta, keeping whatever
  * was under the pointer moving with it - the Y equivalent of panCamera.
+ * `minCenterY`/`maxCenterY` default to unbounded - see panCamera's own
+ * comment on why batch 6b added these bounds.
  */
-export function panCameraY(cameraY: VerticalCamera, deltaScreenY: number): VerticalCamera {
-  return { ...cameraY, centerY: cameraY.centerY + deltaScreenY / cameraY.zoomY };
+export function panCameraY(
+  cameraY: VerticalCamera,
+  deltaScreenY: number,
+  minCenterY = Number.NEGATIVE_INFINITY,
+  maxCenterY = Number.POSITIVE_INFINITY,
+): VerticalCamera {
+  const centerY = cameraY.centerY + deltaScreenY / cameraY.zoomY;
+  return { ...cameraY, centerY: Math.min(maxCenterY, Math.max(minCenterY, centerY)) };
 }
 
 /**
@@ -58,7 +68,8 @@ export function panCameraY(cameraY: VerticalCamera, deltaScreenY: number): Verti
  * equivalent of zoomCameraAtPoint. `minZoomY` is supplied by the caller
  * (it depends on the current data and viewport height, which this module
  * has no notion of) and is the floor below which zooming out would show
- * emptiness beyond the actual data - see verticalEntryView.ts.
+ * emptiness beyond the actual data - see verticalEntryView.ts. `minCenterY`/
+ * `maxCenterY` are the same pan bounds panCameraY takes.
  */
 export function zoomCameraAtPointY(
   cameraY: VerticalCamera,
@@ -66,9 +77,31 @@ export function zoomCameraAtPointY(
   pointerScreenY: number,
   zoomFactor: number,
   minZoomY: number,
+  minCenterY = Number.NEGATIVE_INFINITY,
+  maxCenterY = Number.POSITIVE_INFINITY,
 ): VerticalCamera {
   const worldAtPointer = screenToWorldY(pointerScreenY, cameraY, anchorScreenY);
   const zoomY = clampZoomY(cameraY.zoomY * zoomFactor, minZoomY);
   const centerY = worldAtPointer + (pointerScreenY - anchorScreenY) / zoomY;
-  return { centerY, zoomY };
+  return { centerY: Math.min(maxCenterY, Math.max(minCenterY, centerY)), zoomY };
+}
+
+/**
+ * The Y equivalent of interpolateCamera - see its doc comment. Uses the same
+ * easing curve (imported, not duplicated) so a focus glide that moves both
+ * axes at once arrives looking like one motion rather than two independently
+ * timed ones.
+ */
+export function interpolateVerticalCamera(
+  from: VerticalCamera,
+  to: VerticalCamera,
+  t: number,
+): VerticalCamera {
+  const eased = easeInOutCubic(Math.min(1, Math.max(0, t)));
+  const logZoom = Math.log(from.zoomY) + (Math.log(to.zoomY) - Math.log(from.zoomY)) * eased;
+  const zoomY = Math.exp(logZoom);
+  return {
+    centerY: from.centerY + (to.centerY - from.centerY) * eased,
+    zoomY: Number.isFinite(zoomY) && zoomY > 0 ? zoomY : from.zoomY,
+  };
 }

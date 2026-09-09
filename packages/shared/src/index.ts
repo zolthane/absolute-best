@@ -29,6 +29,7 @@ export { logScale } from "./scale";
 export { computeNiceTicks } from "./ticks";
 export {
   clampZoomY,
+  interpolateVerticalCamera,
   panCameraY,
   screenToWorldY,
   type VerticalCamera,

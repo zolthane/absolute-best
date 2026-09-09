@@ -4,6 +4,7 @@ import {
   fitCameraToItems,
   fitVerticalCameraToItems,
   interpolateCamera,
+  interpolateVerticalCamera,
   minZoomYForItems,
   panCamera,
   panCameraY,
@@ -50,16 +51,27 @@ interface CameraState {
   viewportHeight: number;
   setViewportWidth: (width: number) => void;
   setViewportHeight: (height: number) => void;
-  pan: (deltaScreenX: number) => void;
-  panY: (deltaScreenY: number) => void;
-  zoomAt: (pointerScreenX: number, zoomFactor: number) => void;
+  // minCenter/maxCenter (and their Y equivalents) are supplied by the caller
+  // each time - WorldViewport computes them fresh from the live data and
+  // viewport, since the store itself doesn't know about items (see
+  // initialCamera/initialVerticalCamera, the one deliberate exception).
+  pan: (deltaScreenX: number, minCenter?: number, maxCenter?: number) => void;
+  panY: (deltaScreenY: number, minCenterY?: number, maxCenterY?: number) => void;
+  zoomAt: (
+    pointerScreenX: number,
+    zoomFactor: number,
+    minCenter?: number,
+    maxCenter?: number,
+  ) => void;
   zoomAtY: (
     pointerScreenY: number,
     anchorScreenY: number,
     zoomFactor: number,
     minZoomY: number,
+    minCenterY?: number,
+    maxCenterY?: number,
   ) => void;
-  animateTo: (target: Camera) => void;
+  animateTo: (targetCamera: Camera, targetCameraY: VerticalCamera) => void;
 }
 
 export const useCameraStore = create<CameraState>((set, get) => ({
@@ -86,15 +98,26 @@ export const useCameraStore = create<CameraState>((set, get) => ({
     }));
   },
 
-  pan: (deltaScreenX) => set((state) => ({ camera: panCamera(state.camera, deltaScreenX) })),
-  panY: (deltaScreenY) => set((state) => ({ cameraY: panCameraY(state.cameraY, deltaScreenY) })),
-
-  zoomAt: (pointerScreenX, zoomFactor) =>
+  pan: (deltaScreenX, minCenter, maxCenter) =>
+    set((state) => ({ camera: panCamera(state.camera, deltaScreenX, minCenter, maxCenter) })),
+  panY: (deltaScreenY, minCenterY, maxCenterY) =>
     set((state) => ({
-      camera: zoomCameraAtPoint(state.camera, state.viewportWidth, pointerScreenX, zoomFactor),
+      cameraY: panCameraY(state.cameraY, deltaScreenY, minCenterY, maxCenterY),
     })),
 
-  zoomAtY: (pointerScreenY, anchorScreenY, zoomFactor, minZoomY) =>
+  zoomAt: (pointerScreenX, zoomFactor, minCenter, maxCenter) =>
+    set((state) => ({
+      camera: zoomCameraAtPoint(
+        state.camera,
+        state.viewportWidth,
+        pointerScreenX,
+        zoomFactor,
+        minCenter,
+        maxCenter,
+      ),
+    })),
+
+  zoomAtY: (pointerScreenY, anchorScreenY, zoomFactor, minZoomY, minCenterY, maxCenterY) =>
     set((state) => ({
       cameraY: zoomCameraAtPointY(
         state.cameraY,
@@ -102,16 +125,22 @@ export const useCameraStore = create<CameraState>((set, get) => ({
         pointerScreenY,
         zoomFactor,
         minZoomY,
+        minCenterY,
+        maxCenterY,
       ),
     })),
 
-  animateTo: (target) => {
-    const start = get().camera;
+  animateTo: (targetCamera, targetCameraY) => {
+    const startCamera = get().camera;
+    const startCameraY = get().cameraY;
     const startTime = performance.now();
 
     function step(now: number) {
       const t = (now - startTime) / FOCUS_ANIMATION_MS;
-      set({ camera: interpolateCamera(start, target, t) });
+      set({
+        camera: interpolateCamera(startCamera, targetCamera, t),
+        cameraY: interpolateVerticalCamera(startCameraY, targetCameraY, t),
+      });
       if (t < 1) {
         requestAnimationFrame(step);
       }

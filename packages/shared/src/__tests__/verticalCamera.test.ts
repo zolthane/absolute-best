@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   clampZoomY,
+  interpolateVerticalCamera,
   panCameraY,
   screenToWorldY,
   type VerticalCamera,
@@ -43,6 +44,15 @@ describe("panCameraY", () => {
 
   it("does not change zoom", () => {
     expect(panCameraY(cameraY, 123).zoomY).toBe(cameraY.zoomY);
+  });
+
+  it("clamps the result to the given bounds rather than panning past them", () => {
+    expect(panCameraY(cameraY, 10_000, -5, 5).centerY).toBe(5);
+    expect(panCameraY(cameraY, -10_000, -5, 5).centerY).toBe(-5);
+  });
+
+  it("leaves panning unbounded when no bounds are given", () => {
+    expect(panCameraY(cameraY, 10_000).centerY).toBeGreaterThan(5);
   });
 });
 
@@ -89,6 +99,50 @@ describe("zoomCameraAtPointY", () => {
       expect(Number.isFinite(zoomed.zoomY)).toBe(true);
       expect(Number.isFinite(zoomed.centerY)).toBe(true);
     }
+  });
+
+  it("clamps the resulting centre to the given bounds", () => {
+    const zoomed = zoomCameraAtPointY(cameraY, anchorScreenY, 500, 2, minZoomY, -1, 1);
+    expect(zoomed.centerY).toBeGreaterThanOrEqual(-1);
+    expect(zoomed.centerY).toBeLessThanOrEqual(1);
+  });
+});
+
+describe("interpolateVerticalCamera", () => {
+  const from: VerticalCamera = { centerY: 0, zoomY: 1 };
+  const to: VerticalCamera = { centerY: 3, zoomY: 16 };
+
+  it("returns the start camera at t=0 and the end camera at t=1", () => {
+    expect(interpolateVerticalCamera(from, to, 0)).toEqual(from);
+    const atEnd = interpolateVerticalCamera(from, to, 1);
+    expect(atEnd.centerY).toBe(to.centerY);
+    expect(atEnd.zoomY).toBeCloseTo(to.zoomY, 9);
+  });
+
+  it("interpolates zoom multiplicatively rather than linearly", () => {
+    // Linearly, the midpoint zoom would be (1+16)/2 = 8.5. In log space
+    // (matching how zoom naturally works) it should be sqrt(1*16) = 4.
+    const midpoint = interpolateVerticalCamera(from, to, 0.5);
+    expect(midpoint.zoomY).toBeCloseTo(4, 5);
+  });
+
+  it("moves monotonically from start to end as t increases", () => {
+    const centers = [0, 0.25, 0.5, 0.75, 1].map(
+      (t) => interpolateVerticalCamera(from, to, t).centerY,
+    );
+    for (let i = 1; i < centers.length; i++) {
+      const previous = centers[i - 1];
+      const current = centers[i];
+      if (previous === undefined || current === undefined) throw new Error("fixture error");
+      expect(current).toBeGreaterThan(previous);
+    }
+  });
+
+  it("clamps t outside [0, 1] rather than overshooting", () => {
+    expect(interpolateVerticalCamera(from, to, -1)).toEqual(from);
+    const beyondEnd = interpolateVerticalCamera(from, to, 2);
+    expect(beyondEnd.centerY).toBe(to.centerY);
+    expect(beyondEnd.zoomY).toBeCloseTo(to.zoomY, 9);
   });
 });
 

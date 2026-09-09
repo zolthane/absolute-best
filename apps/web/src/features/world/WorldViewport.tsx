@@ -12,6 +12,7 @@ import {
   sampleGrid,
   screenToWorld,
   screenToWorldY,
+  type VerticalCamera,
   verticalCameraToUrlParams,
   worldPositionToCellIndex,
   worldToScreen,
@@ -137,14 +138,38 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   }, []);
 
   const axisTopPx = (AXIS_TOP_PERCENT / 100) * viewportHeight;
-  // The floor vertical zoom can never go below - see minZoomYForItems. Read
-  // fresh from the current data/viewport every render, then closed over by
-  // the wheel listener below via its dependency array.
+  // The floor vertical zoom can never go below - see minZoomYForItems.
   const minZoomY = minZoomYForItems(items, viewportHeight);
+
+  // Pan bounds (batch 6b): panning or zooming out can reveal empty space
+  // beyond the data, but never more than half a screen of it on either
+  // side - a "there's nothing more to see this way" guardrail for both
+  // axes. Half a screen's worth of world-units depends on the current zoom,
+  // so this is recomputed every render, not a fixed constant.
+  const scores = items.map((item) => item.score);
+  const minScore = scores.length > 0 ? Math.min(...scores) : Number.NEGATIVE_INFINITY;
+  const maxScore = scores.length > 0 ? Math.max(...scores) : Number.POSITIVE_INFINITY;
+  const halfScreenWorldX = viewportWidth / 2 / camera.zoom;
+  const minCenterX = minScore - halfScreenWorldX;
+  const maxCenterX = maxScore + halfScreenWorldX;
+
+  const maxVoterCount = Math.max(1, ...items.map((item) => item.voterCount));
+  const maxWorldY = Math.log10(maxVoterCount);
+  const halfScreenWorldY = viewportHeight / 2 / cameraY.zoomY;
+  const minCenterY = 0 - halfScreenWorldY;
+  const maxCenterY = maxWorldY + halfScreenWorldY;
+
+  // Read by the wheel listener below, which is registered once (not on every
+  // render) so it isn't re-attached on every zoom tick - see its own comment.
+  const latestRef = useRef({ axisTopPx, minZoomY, minCenterX, maxCenterX, minCenterY, maxCenterY });
+  latestRef.current = { axisTopPx, minZoomY, minCenterX, maxCenterX, minCenterY, maxCenterY };
 
   // A native, non-passive listener: React's synthetic onWheel is attached
   // passively, so calling preventDefault() there is silently ignored (and
   // logs a console warning) instead of stopping the page from scrolling.
+  // Registered once (empty deps) and reads latestRef for anything that can
+  // change between renders, rather than re-registering on every one of
+  // those changes (which would include every zoom tick).
   useEffect(() => {
     const element = viewportRef.current;
     if (!element) {
@@ -158,12 +183,24 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
       // like continuous zooming rather than a series of tiny, sluggish steps.
       const sensitivity = event.ctrlKey ? 0.02 : 0.004;
       const zoomFactor = Math.exp(-event.deltaY * sensitivity);
-      useCameraStore.getState().zoomAt(event.clientX, zoomFactor);
-      useCameraStore.getState().zoomAtY(event.clientY, axisTopPx, zoomFactor, minZoomY);
+      const latest = latestRef.current;
+      useCameraStore
+        .getState()
+        .zoomAt(event.clientX, zoomFactor, latest.minCenterX, latest.maxCenterX);
+      useCameraStore
+        .getState()
+        .zoomAtY(
+          event.clientY,
+          latest.axisTopPx,
+          zoomFactor,
+          latest.minZoomY,
+          latest.minCenterY,
+          latest.maxCenterY,
+        );
     };
     element.addEventListener("wheel", handleWheel, { passive: false });
     return () => element.removeEventListener("wheel", handleWheel);
-  }, [axisTopPx, minZoomY]);
+  }, []);
 
   // Keeps the address bar in sync with the camera (product spec, section 3:
   // the camera position is a shareable link). replaceState, not pushState -
@@ -186,16 +223,32 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
       const finalDeltaX = finalClientX - panGestureStart.current.x;
       const finalDeltaY = finalClientY - panGestureStart.current.y;
       if (finalDeltaX !== 0) {
-        useCameraStore.getState().pan(finalDeltaX);
+        useCameraStore.getState().pan(finalDeltaX, minCenterX, maxCenterX);
       }
       if (finalDeltaY !== 0) {
-        useCameraStore.getState().panY(finalDeltaY);
+        useCameraStore.getState().panY(finalDeltaY, minCenterY, maxCenterY);
       }
       panGestureStart.current = null;
     }
     if (worldContentRef.current) {
       worldContentRef.current.style.transform = "";
     }
+  };
+
+  // What panCamera/panCameraY would actually do with `delta`, once their own
+  // pan-bound clamp is applied - used to make the live drag preview stop at
+  // the same boundary in real time, instead of rubber-banding back to it
+  // only once the gesture commits.
+  const clampedPanDelta = (
+    currentCenter: number,
+    zoom: number,
+    delta: number,
+    minCenter: number,
+    maxCenter: number,
+  ): number => {
+    const rawCenter = currentCenter - delta / zoom;
+    const clampedCenter = Math.min(maxCenter, Math.max(minCenter, rawCenter));
+    return (currentCenter - clampedCenter) * zoom;
   };
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -228,15 +281,32 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
     activePointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
 
     if (activePointers.current.size === 1 && panGestureStart.current !== null) {
-      const liveDeltaX = event.clientX - panGestureStart.current.x;
-      const liveDeltaY = event.clientY - panGestureStart.current.y;
+      const rawDeltaX = event.clientX - panGestureStart.current.x;
+      const rawDeltaY = event.clientY - panGestureStart.current.y;
       // Once the pointer has genuinely moved, this is a drag rather than a
       // tap - safe to start capturing it now (harmless to call again on
       // every subsequent move of the same drag). Checked as a 2D distance
       // so a purely vertical drag counts too, not just a horizontal one.
-      if (distanceBetween({ x: liveDeltaX, y: liveDeltaY }, { x: 0, y: 0 }) >= DRAG_THRESHOLD_PX) {
+      if (distanceBetween({ x: rawDeltaX, y: rawDeltaY }, { x: 0, y: 0 }) >= DRAG_THRESHOLD_PX) {
         event.currentTarget.setPointerCapture?.(event.pointerId);
       }
+      // Clamped the same way the eventual commit will be, so the preview
+      // stops at the pan boundary in real time instead of rubber-banding
+      // back once the gesture ends.
+      const liveDeltaX = clampedPanDelta(
+        camera.center,
+        camera.zoom,
+        rawDeltaX,
+        minCenterX,
+        maxCenterX,
+      );
+      const liveDeltaY = clampedPanDelta(
+        cameraY.centerY,
+        cameraY.zoomY,
+        rawDeltaY,
+        minCenterY,
+        maxCenterY,
+      );
       // Only a CSS transform is touched here - no store update, no React
       // re-render - so panning stays smooth regardless of how many pointer
       // events the browser fires per second (trackpads fire a lot of them).
@@ -256,8 +326,10 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
         const zoomFactor = distance / pinchStartDistance.current;
         const midpointX = (a.x + b.x) / 2;
         const midpointY = (a.y + b.y) / 2;
-        useCameraStore.getState().zoomAt(midpointX, zoomFactor);
-        useCameraStore.getState().zoomAtY(midpointY, axisTopPx, zoomFactor, minZoomY);
+        useCameraStore.getState().zoomAt(midpointX, zoomFactor, minCenterX, maxCenterX);
+        useCameraStore
+          .getState()
+          .zoomAtY(midpointY, axisTopPx, zoomFactor, minZoomY, minCenterY, maxCenterY);
       }
       pinchStartDistance.current = distance;
     }
@@ -349,34 +421,39 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
     opacity: logScale(count, 1, MAX_CELL_DENSITY_FOR_STYLING, DOT_MIN_OPACITY, 1),
   }));
 
-  // Every dot on screen can block a label, whether or not it has one of its
-  // own - a crowded cell's larger dot is just as much an obstacle as
-  // another lone item's. See labelDeclutter.ts.
-  const allDotCandidates: LabelCandidate[] = cellRenderData.map(({ representative, sizePx }) => ({
-    id: representative.item.id,
-    screenX: representative.screenX,
-    screenY: representative.screenY,
-    dotSizePx: sizePx,
-    priority: 0,
-    labelWidthPx: 0,
-    labelHeightPx: 0,
-  }));
-  const labelCandidates: LabelCandidate[] = cellRenderData
-    .filter(({ count }) => count === 1)
-    .map(({ representative, sizePx }) => ({
+  // Every cell is a label candidate now, not just a lone item's - a crowded
+  // cell shows its representative's name too ("Title +N"), so a group that
+  // can never be split by zoom (an exact score-and-voter-count tie, however
+  // rare) still isn't permanently silent. See labelDeclutter.ts for the
+  // collision rule that decides which of these actually get drawn.
+  const labelText = (representative: GridItem, count: number): string =>
+    count > 1 ? `${representative.item.title} +${count - 1}` : representative.item.title;
+
+  const labelCandidates: LabelCandidate[] = cellRenderData.map(
+    ({ representative, count, sizePx }) => ({
       id: representative.item.id,
       screenX: representative.screenX,
       screenY: representative.screenY,
       dotSizePx: sizePx,
       // A more-established item keeps its label when two would collide.
       priority: representative.item.voterCount,
-      labelWidthPx: representative.item.title.length * LABEL_CHAR_WIDTH_PX + LABEL_TEXT_PADDING_PX,
+      labelWidthPx:
+        labelText(representative, count).length * LABEL_CHAR_WIDTH_PX + LABEL_TEXT_PADDING_PX,
       labelHeightPx: LABEL_HEIGHT_PX,
-    }));
-  const shownLabelIds = declutterLabels(allDotCandidates, labelCandidates);
+    }),
+  );
+  const shownLabelIds = declutterLabels(labelCandidates, labelCandidates);
 
   const handleDotSelect = (item: Item) => {
-    useCameraStore.getState().animateTo(computeFocusCamera(item, items, viewportWidth));
+    const targetCamera = computeFocusCamera(item, items, viewportWidth);
+    const targetCameraY: VerticalCamera = {
+      centerY: Math.log10(Math.max(item.voterCount, 1)),
+      // Focusing recentres vertically but keeps the current vertical zoom -
+      // the product spec's "20 items either side" rule for X has no obvious
+      // Y equivalent, so this doesn't invent one.
+      zoomY: cameraY.zoomY,
+    };
+    useCameraStore.getState().animateTo(targetCamera, targetCameraY);
   };
 
   return (
@@ -476,8 +553,8 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
             key={`${representative.cellCol}:${representative.cellRow}`}
             screenX={representative.screenX}
             screenY={representative.screenY}
-            title={representative.item.title}
-            showLabel={count === 1 && shownLabelIds.has(representative.item.id)}
+            title={labelText(representative, count)}
+            showLabel={shownLabelIds.has(representative.item.id)}
             sizePx={sizePx}
             opacity={opacity}
             // hasVoted is always false for now - there is no voting yet

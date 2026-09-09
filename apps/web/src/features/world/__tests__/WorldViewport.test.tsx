@@ -232,7 +232,12 @@ describe("WorldViewport", () => {
       expect(screen.getAllByTestId("item-dot")).toHaveLength(2);
     });
 
-    it("shows a label only for a dot that is alone in its cell", () => {
+    it("shows a plain label for a lone item and a '+N' label for a crowded cell", () => {
+      // Batch 6b: a crowded cell now gets a label too (its representative's
+      // name plus how many more it stands for) - otherwise a group that can
+      // never be split by zoom (an exact tie on both score and voter count,
+      // as some of the realistic mock data turned out to have) would be
+      // permanently silent, which is exactly what was reported as a bug.
       const alone: Item[] = [
         { id: "a", title: "Alpha", score: 0, voterCount: 10, order: 0, tags: [] },
       ];
@@ -245,7 +250,7 @@ describe("WorldViewport", () => {
         { id: "b", title: "Beta", score: 3, voterCount: 100, order: 1, tags: [] },
       ];
       render(<WorldViewport items={crowded} />);
-      expect(screen.queryByTestId("item-label")).not.toBeInTheDocument();
+      expect(screen.getByTestId("item-label")).toHaveTextContent("Alpha +1");
     });
 
     it("draws a larger dot for a more crowded cell than for a lone item", () => {
@@ -328,7 +333,7 @@ describe("WorldViewport", () => {
       expect(screen.queryByTestId("item-card")).not.toBeInTheDocument();
     });
 
-    it("focuses the clicked item by animating the camera to centre it", () => {
+    it("focuses the clicked item by animating the camera to centre it, both horizontally and vertically", () => {
       // The glide itself (eased, not instant) is exhaustively covered by
       // interpolateCamera's own tests in packages/shared, and running the
       // animation for real depends on requestAnimationFrame timestamps
@@ -347,8 +352,10 @@ describe("WorldViewport", () => {
       fireEvent.click(screen.getByTestId("item-dot"));
 
       expect(animateTo).toHaveBeenCalledTimes(1);
-      const target = animateTo.mock.calls[0]?.[0];
+      const [target, targetY] = animateTo.mock.calls[0] ?? [];
       expect(target?.center).toBe(35);
+      // voterCount is 100: log10(100) = 2.
+      expect(targetY?.centerY).toBeCloseTo(2, 9);
       animateTo.mockRestore();
     });
 
@@ -402,6 +409,35 @@ describe("WorldViewport", () => {
       const decades = Math.max(Math.log10(1000), 1);
       const minZoomY = 800 / (decades * 1.1);
       expect(useCameraStore.getState().cameraY.zoomY).toBeGreaterThanOrEqual(minZoomY);
+    });
+
+    it("never pans further than half a screen past the last item, horizontally", () => {
+      const items: Item[] = [{ id: "a", title: "A", score: 0, voterCount: 10, order: 0, tags: [] }];
+      render(<WorldViewport items={items} />);
+      const viewport = screen.getByTestId("world-viewport");
+
+      fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 500 });
+      fireEvent.pointerMove(viewport, { pointerId: 1, clientX: -5000 });
+      fireEvent.pointerUp(viewport, { pointerId: 1, clientX: -5000 });
+
+      // viewportWidth 1000, zoom 4: half a screen is (1000/2)/4 = 125 world
+      // units past the only item's score of 0.
+      expect(useCameraStore.getState().camera.center).toBeCloseTo(125, 9);
+    });
+
+    it("never pans further than half a screen past the top item, vertically", () => {
+      const items: Item[] = [{ id: "a", title: "A", score: 0, voterCount: 10, order: 0, tags: [] }];
+      render(<WorldViewport items={items} />);
+      const viewport = screen.getByTestId("world-viewport");
+
+      fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 500, clientY: 400 });
+      fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 500, clientY: 6000 });
+      fireEvent.pointerUp(viewport, { pointerId: 1, clientX: 500, clientY: 6000 });
+
+      // viewportHeight 800, zoomY 100: half a screen is (800/2)/100 = 4 world
+      // units past the only item's voter count (10 -> worldY 1), so the
+      // ceiling is 1 + 4 = 5.
+      expect(useCameraStore.getState().cameraY.centerY).toBeCloseTo(5, 9);
     });
 
     it("hides the lower-priority label when two lone items' labels would collide", () => {
