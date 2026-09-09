@@ -11,7 +11,7 @@ const SIMULATION_INTERVAL_MS = 3500;
 const MAX_SIMULATED_VOTE_MAGNITUDE = 5;
 // Matches voteStore's own SETTLE_ANIMATION_MS, so a simulated vote settles
 // with the same feel as a real one - both reuse springSettleProgress (W2).
-const SETTLE_ANIMATION_MS = 500;
+const SETTLE_ANIMATION_MS = 300;
 
 interface LivingWorldState {
   // itemId -> cumulative score change from every simulated vote it's had.
@@ -23,6 +23,11 @@ interface LivingWorldState {
   // settlingScores, kept separate so a real vote and a simulated one can
   // never contend over the same field.
   settlingDrift: Record<string, number>;
+  // itemId -> the live animated voter count over that same settle window -
+  // same reasoning as voteStore's settlingVoterCounts: a vote moves an item
+  // both sideways (score) and upward (voter count), so both need to ease in
+  // together or the item only ever appears to slide sideways.
+  settlingDriftVoterCounts: Record<string, number>;
   intervalId: ReturnType<typeof setInterval> | null;
   start: () => void;
   stop: () => void;
@@ -39,16 +44,18 @@ export function applyDrift(
   driftScores: Record<string, number>,
   driftVoterCounts: Record<string, number>,
   settlingDrift: Record<string, number>,
+  settlingDriftVoterCounts: Record<string, number> = {},
 ): Item {
   const delta = driftScores[item.id];
   if (delta === undefined) {
     return item;
   }
   const settlingScore = settlingDrift[item.id];
+  const settlingVoterCount = settlingDriftVoterCounts[item.id];
   return {
     ...item,
     score: settlingScore ?? item.score + delta,
-    voterCount: item.voterCount + (driftVoterCounts[item.id] ?? 0),
+    voterCount: settlingVoterCount ?? item.voterCount + (driftVoterCounts[item.id] ?? 0),
   };
 }
 
@@ -57,15 +64,18 @@ export function applyDrift(
 // and read its current score/voter count from. Called fresh on every tick
 // rather than captured once, so it always reflects the latest state.
 function currentItemsWithRealVotesApplied(): Item[] {
-  const { votes, settlingScores } = useVoteStore.getState();
+  const { votes, settlingScores, settlingVoterCounts } = useVoteStore.getState();
   const entries = Object.values(useEntriesStore.getState().itemsByIdentifier);
-  return [...mockItems, ...entries].map((item) => effectiveItem(item, votes, settlingScores));
+  return [...mockItems, ...entries].map((item) =>
+    effectiveItem(item, votes, settlingScores, settlingVoterCounts),
+  );
 }
 
 export const useLivingWorldStore = create<LivingWorldState>((set, get) => ({
   driftScores: {},
   driftVoterCounts: {},
   settlingDrift: {},
+  settlingDriftVoterCounts: {},
   intervalId: null,
 
   start: () => {
@@ -125,8 +135,13 @@ export const useLivingWorldStore = create<LivingWorldState>((set, get) => ({
       }
 
       const toScore = scoreBeforeVote + delta;
+      const toVoterCount = voterCountBeforeVote + 1;
       set((current) => ({
         settlingDrift: { ...current.settlingDrift, [targetId]: scoreBeforeVote },
+        settlingDriftVoterCounts: {
+          ...current.settlingDriftVoterCounts,
+          [targetId]: voterCountBeforeVote,
+        },
       }));
       const startTime = performance.now();
 
@@ -136,14 +151,25 @@ export const useLivingWorldStore = create<LivingWorldState>((set, get) => ({
           set((current) => {
             const nextSettlingDrift = { ...current.settlingDrift };
             delete nextSettlingDrift[targetId];
-            return { settlingDrift: nextSettlingDrift };
+            const nextSettlingDriftVoterCounts = { ...current.settlingDriftVoterCounts };
+            delete nextSettlingDriftVoterCounts[targetId];
+            return {
+              settlingDrift: nextSettlingDrift,
+              settlingDriftVoterCounts: nextSettlingDriftVoterCounts,
+            };
           });
           return;
         }
         const progress = springSettleProgress(t, voterCountBeforeVote);
         const currentScore = scoreBeforeVote + (toScore - scoreBeforeVote) * progress;
+        const currentVoterCount =
+          voterCountBeforeVote + (toVoterCount - voterCountBeforeVote) * progress;
         set((current) => ({
           settlingDrift: { ...current.settlingDrift, [targetId]: currentScore },
+          settlingDriftVoterCounts: {
+            ...current.settlingDriftVoterCounts,
+            [targetId]: currentVoterCount,
+          },
         }));
         requestAnimationFrame(step);
       }

@@ -21,10 +21,15 @@ beforeEach(() => {
     viewportHeight: 800,
   });
   useAuthStore.setState({ username: null });
-  useVoteStore.setState({ votes: {}, settlingScores: {} });
+  useVoteStore.setState({ votes: {}, settlingScores: {}, settlingVoterCounts: {} });
   useFocusStore.setState({ focusedItemId: null });
   useEntriesStore.setState({ itemsByIdentifier: {} });
-  useLivingWorldStore.setState({ driftScores: {}, driftVoterCounts: {}, settlingDrift: {} });
+  useLivingWorldStore.setState({
+    driftScores: {},
+    driftVoterCounts: {},
+    settlingDrift: {},
+    settlingDriftVoterCounts: {},
+  });
 });
 
 describe("WorldViewport", () => {

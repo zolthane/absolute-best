@@ -85,13 +85,13 @@ const GRID_CELL_SIZE_PX = 40;
 // largest, darkest state rather than continuing to grow without bound.
 const MAX_CELL_DENSITY_FOR_STYLING = 50;
 const DOT_MIN_SIZE_PX = 8;
-const DOT_MAX_SIZE_PX = 26;
+const DOT_MAX_SIZE_PX = 44;
 const DOT_MIN_OPACITY = 0.45;
 
 // The one dot on the map that can actually be grabbed to vote gets a floor
 // on its size, bigger than even the largest density-based DOT_MAX_SIZE_PX -
 // easier to hit with a mouse, and especially with a finger.
-const FOCUSED_VOTABLE_DOT_MIN_PX = 28;
+const FOCUSED_VOTABLE_DOT_MIN_PX = 52;
 
 // A rough estimate of a label's on-screen box, used only to decide whether
 // two labels would collide (labelDeclutter.ts) - not exact text
@@ -165,10 +165,12 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   const isLoggedIn = useAuthStore((state) => state.username !== null);
   const votes = useVoteStore((state) => state.votes);
   const settlingScores = useVoteStore((state) => state.settlingScores);
+  const settlingVoterCounts = useVoteStore((state) => state.settlingVoterCounts);
   const entriesByIdentifier = useEntriesStore((state) => state.itemsByIdentifier);
   const driftScores = useLivingWorldStore((state) => state.driftScores);
   const driftVoterCounts = useLivingWorldStore((state) => state.driftVoterCounts);
   const settlingDrift = useLivingWorldStore((state) => state.settlingDrift);
+  const settlingDriftVoterCounts = useLivingWorldStore((state) => state.settlingDriftVoterCounts);
   // Just the id, not the whole GridItem: that object's screenX/screenY would
   // go stale if the camera moves while hovering (e.g. zooming with the wheel
   // without moving the mouse) - looking it up fresh from `cells` every
@@ -257,8 +259,10 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   // in positioning, grid membership, and the card - not special-cased in
   // each place.
   const effectiveItems = [...items, ...addedItems]
-    .map((item) => effectiveItem(item, votes, settlingScores))
-    .map((item) => applyDrift(item, driftScores, driftVoterCounts, settlingDrift));
+    .map((item) => effectiveItem(item, votes, settlingScores, settlingVoterCounts))
+    .map((item) =>
+      applyDrift(item, driftScores, driftVoterCounts, settlingDrift, settlingDriftVoterCounts),
+    );
 
   const axisTopPx = (AXIS_TOP_PERCENT / 100) * viewportHeight;
   // The floor vertical zoom can never go below - see minZoomYForItems.

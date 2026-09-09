@@ -5,8 +5,13 @@ import { useVoteStore } from "../../vote/voteStore";
 import { applyDrift, useLivingWorldStore } from "../livingWorldStore";
 
 beforeEach(() => {
-  useLivingWorldStore.setState({ driftScores: {}, driftVoterCounts: {}, settlingDrift: {} });
-  useVoteStore.setState({ votes: {}, settlingScores: {} });
+  useLivingWorldStore.setState({
+    driftScores: {},
+    driftVoterCounts: {},
+    settlingDrift: {},
+    settlingDriftVoterCounts: {},
+  });
+  useVoteStore.setState({ votes: {}, settlingScores: {}, settlingVoterCounts: {} });
   useEntriesStore.setState({ itemsByIdentifier: {} });
   vi.useFakeTimers();
   // The settle animation's own requestAnimationFrame loop is not what these
@@ -39,6 +44,12 @@ describe("applyDrift", () => {
     const result = applyDrift(item, { a: 6 }, { a: 3 }, { a: 23 });
     expect(result.score).toBe(23);
     expect(result.voterCount).toBe(103);
+  });
+
+  it("uses the live settling voter count in place of the final one while mid-animation", () => {
+    const result = applyDrift(item, { a: 6 }, { a: 3 }, { a: 23 }, { a: 101.5 });
+    expect(result.score).toBe(23);
+    expect(result.voterCount).toBe(101.5);
   });
 
   it("never mutates the original item", () => {
