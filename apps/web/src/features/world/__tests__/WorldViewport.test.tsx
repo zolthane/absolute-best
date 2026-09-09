@@ -606,11 +606,11 @@ describe("WorldViewport", () => {
       fireEvent.click(screen.getByTestId("item-dot"));
       const dot = screen.getByTestId("item-dot");
 
-      // VOTE_DRAG_PX_PER_POINT is 20: dragging 60px right is +3.
+      // VOTE_DRAG_PX_PER_POINT is 12: dragging 36px right is +3.
       fireEvent.pointerDown(dot, { pointerId: 1, clientX: 580 });
-      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 640 });
+      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 616 });
 
-      expect(screen.getByTestId("vote-preview")).toHaveTextContent("20 → 23");
+      expect(screen.getByTestId("vote-preview")).toHaveTextContent("20 + 3 = 23");
       expect(screen.queryByRole("button", { name: /submit/i })).not.toBeInTheDocument();
       // Not cast until Submit, and the map must not have panned instead.
       expect(useVoteStore.getState().hasVoted("a")).toBe(false);
@@ -625,7 +625,7 @@ describe("WorldViewport", () => {
       fireEvent.pointerDown(dot, { pointerId: 1, clientX: 580 });
       fireEvent.pointerMove(dot, { pointerId: 1, clientX: 5000 });
 
-      expect(screen.getByTestId("vote-preview")).toHaveTextContent("20 → 30");
+      expect(screen.getByTestId("vote-preview")).toHaveTextContent("20 + 10 = 30");
     });
 
     it("needs the same drag distance to reach +10 regardless of the map's zoom level", () => {
@@ -641,9 +641,9 @@ describe("WorldViewport", () => {
       const dot = screen.getByTestId("item-dot");
 
       fireEvent.pointerDown(dot, { pointerId: 1, clientX: 580 });
-      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 780 });
+      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 700 });
 
-      expect(screen.getByTestId("vote-preview")).toHaveTextContent("20 → 30");
+      expect(screen.getByTestId("vote-preview")).toHaveTextContent("20 + 10 = 30");
     });
 
     it("does not cast the vote on release - a Submit button appears instead (rule R9)", () => {
@@ -653,8 +653,8 @@ describe("WorldViewport", () => {
       const dot = screen.getByTestId("item-dot");
 
       fireEvent.pointerDown(dot, { pointerId: 1, clientX: 580 });
-      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 780 });
-      fireEvent.pointerUp(dot, { pointerId: 1, clientX: 780 });
+      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 700 });
+      fireEvent.pointerUp(dot, { pointerId: 1, clientX: 700 });
 
       expect(useVoteStore.getState().hasVoted("a")).toBe(false);
       expect(screen.getByRole("button", { name: /submit vote: \+10/i })).toBeInTheDocument();
@@ -667,8 +667,8 @@ describe("WorldViewport", () => {
       const dot = screen.getByTestId("item-dot");
 
       fireEvent.pointerDown(dot, { pointerId: 1, clientX: 580 });
-      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 780 });
-      fireEvent.pointerUp(dot, { pointerId: 1, clientX: 780 });
+      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 700 });
+      fireEvent.pointerUp(dot, { pointerId: 1, clientX: 700 });
       fireEvent.click(screen.getByRole("button", { name: /submit vote: \+10/i }));
 
       expect(useVoteStore.getState().hasVoted("a")).toBe(true);
@@ -699,8 +699,8 @@ describe("WorldViewport", () => {
       });
 
       fireEvent.pointerDown(dot, { pointerId: 1, clientX: 580 });
-      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 780 });
-      fireEvent.pointerUp(dot, { pointerId: 1, clientX: 780 });
+      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 700 });
+      fireEvent.pointerUp(dot, { pointerId: 1, clientX: 700 });
 
       const animateTo = vi.mocked(useCameraStore.getState().animateTo);
       animateTo.mockClear();
@@ -722,15 +722,15 @@ describe("WorldViewport", () => {
       const dot = screen.getByTestId("item-dot");
 
       fireEvent.pointerDown(dot, { pointerId: 1, clientX: 580 });
-      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 780 }); // +10
-      fireEvent.pointerUp(dot, { pointerId: 1, clientX: 780 });
-      expect(screen.getByTestId("vote-preview")).toHaveTextContent("20 → 30");
+      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 700 }); // +10
+      fireEvent.pointerUp(dot, { pointerId: 1, clientX: 700 });
+      expect(screen.getByTestId("vote-preview")).toHaveTextContent("20 + 10 = 30");
 
       // A fresh drag, not one continuing from +10 - rule R4: always the
       // full range, centred on the item.
       fireEvent.pointerDown(dot, { pointerId: 2, clientX: 580 });
-      fireEvent.pointerMove(dot, { pointerId: 2, clientX: 480 }); // -5
-      expect(screen.getByTestId("vote-preview")).toHaveTextContent("20 → 15");
+      fireEvent.pointerMove(dot, { pointerId: 2, clientX: 520 }); // -5
+      expect(screen.getByTestId("vote-preview")).toHaveTextContent("20 - 5 = 15");
     });
 
     it("un-focuses (and abandons a pending vote) when the background is clicked", () => {
@@ -781,8 +781,8 @@ describe("WorldViewport", () => {
       const dot = screen.getAllByTestId("item-dot")[0] as HTMLElement;
 
       fireEvent.pointerDown(dot, { pointerId: 1, clientX: 580 });
-      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 780 });
-      fireEvent.pointerUp(dot, { pointerId: 1, clientX: 780 });
+      fireEvent.pointerMove(dot, { pointerId: 1, clientX: 700 });
+      fireEvent.pointerUp(dot, { pointerId: 1, clientX: 700 });
       // Simulates the pointer landing over the OTHER item's dot on release -
       // exactly what used to make the Submit button vanish.
       fireEvent.mouseEnter(screen.getAllByTestId("item-dot")[1] as HTMLElement);

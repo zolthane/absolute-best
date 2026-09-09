@@ -70,8 +70,20 @@ describe("ItemCard", () => {
           vote={{ delta: 7, isPending: false, onSubmit: vi.fn() }}
         />,
       );
-      expect(screen.getByTestId("vote-preview")).toHaveTextContent("10 → 17");
+      expect(screen.getByTestId("vote-preview")).toHaveTextContent("10 + 7 = 17");
       expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    });
+
+    it("previews a negative drag as subtraction, without a double minus", () => {
+      render(
+        <ItemCard
+          item={item}
+          screenX={500}
+          screenY={400}
+          vote={{ delta: -3, isPending: false, onSubmit: vi.fn() }}
+        />,
+      );
+      expect(screen.getByTestId("vote-preview")).toHaveTextContent("10 - 3 = 7");
     });
 
     it("shows a Submit button with the signed delta once released (rule R9)", () => {

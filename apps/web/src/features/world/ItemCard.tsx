@@ -118,7 +118,8 @@ export function ItemCard({
       {vote && (
         <CardFooter className="flex-col items-stretch gap-1.5">
           <p data-testid="vote-preview" className="font-medium text-sm">
-            {item.score} → {item.score + vote.delta}
+            {item.score} {vote.delta >= 0 ? "+" : "-"} {Math.abs(vote.delta)} ={" "}
+            {item.score + vote.delta}
           </p>
           {vote.isPending && (
             <>

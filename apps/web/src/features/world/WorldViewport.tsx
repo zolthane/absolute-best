@@ -106,9 +106,11 @@ const MAX_VOTE_MAGNITUDE = 10;
 // level, and on a narrow phone screen, the far end of that range could fall
 // outside the screen entirely. A fixed sensitivity keeps the whole gesture
 // within a comfortable, thumb-reachable distance regardless of zoom level or
-// screen size - the full +-10 range now takes at most 20*10 = 200px either
-// side of the start point.
-const VOTE_DRAG_PX_PER_POINT = 20;
+// screen size - the full +-10 range now takes at most 12*10 = 120px either
+// side of the start point (the focused item's dot, which focusing always
+// centres - see handleDotSelect), comfortably inside even a narrow phone
+// screen held upright (reported: 200px reached past the edge on one).
+const VOTE_DRAG_PX_PER_POINT = 12;
 
 // On casting a vote, the vertical camera zooms out (if it needs to) so both
 // the item's old and new position - it moves up by one step of voterCount,
