@@ -411,6 +411,14 @@ things the plan hadn't anticipated:**
 Not a regression list - this is what testing on a real phone, with realistic crowded data,
 turned out to need. See commit history on `feature/batch-7-drag-to-vote` for the detail.
 
+**Batch 7b — passing item (added by request, tested and confirmed).** While dragging (and
+after release, up to Submit), the card names the single item the vote would overtake on the
+score axis - among everything lying between the old and new score, the one closest in voter
+count to the item being voted on. Deliberately only ever one: the busy middle of the map can
+put many items in that range, at very different voter counts, and naming all of them (or an
+arbitrary one) would be noise, not a meaningful comparison. `findPassedItem` is a pure,
+independently-tested function in `packages/shared`. See `feature/batch-7b-passing-item`.
+
 ---
 
 ## Batch 8 — Search
