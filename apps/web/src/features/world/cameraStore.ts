@@ -170,6 +170,22 @@ export const useCameraStore = create<CameraState>((set, get) => ({
   },
 }));
 
+// The vertical half of "focus this item": centred on its voter count,
+// keeping whatever zoom is already in use - the product spec's "roughly 20
+// neighbours either side" rule for X has no obvious Y equivalent, so this
+// doesn't invent one. Exported so Search (batch 8, a sibling of WorldViewport
+// in TopBar) can focus an item the same way clicking its dot does, rather
+// than reimplementing this.
+export function computeFocusCameraY(
+  item: { voterCount: number },
+  currentZoomY: number,
+): VerticalCamera {
+  return {
+    centerY: Math.log10(Math.max(item.voterCount, 1)),
+    zoomY: currentZoomY,
+  };
+}
+
 export function worldToScreenX(worldX: number): number {
   const { camera, viewportWidth } = useCameraStore.getState();
   return worldToScreen(worldX, camera, viewportWidth);

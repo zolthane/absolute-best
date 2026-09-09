@@ -4,6 +4,7 @@ import type { Item } from "../../../data/mockItems";
 import { useAuthStore } from "../../auth/authStore";
 import { useVoteStore } from "../../vote/voteStore";
 import { useCameraStore } from "../cameraStore";
+import { useFocusStore } from "../focusStore";
 import { WorldViewport } from "../WorldViewport";
 
 // The exhaustive coordinate-maths correctness lives in packages/shared's own
@@ -19,6 +20,7 @@ beforeEach(() => {
   });
   useAuthStore.setState({ username: null });
   useVoteStore.setState({ votes: {}, settlingScores: {} });
+  useFocusStore.setState({ focusedItemId: null });
 });
 
 describe("WorldViewport", () => {

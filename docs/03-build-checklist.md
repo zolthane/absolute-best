@@ -30,7 +30,7 @@
 | 5 | Item cards and focusing | 3–4 | Click an item; the camera glides to it and shows a card | [x] |
 | 6 | Mock login | 2–3 | Log in; items turn blue; refresh keeps you logged in | [x] |
 | 7 | Drag to vote | 3–4 | Drag, preview, Submit — the item moves and locks | [x] |
-| 8 | Search | 2 | Type a name; fly to it | [ ] |
+| 8 | Search | 2 | Type a name; fly to it | [x] |
 | 9 | Add an entry from a link | 2 | Paste a link twice; the second is refused as a duplicate | [ ] |
 | 10 | The living world | 2 | Watch items drift as fake people vote | [ ] |
 | 11 | Intro screen | 2–3 | The full first-run experience | [ ] |
@@ -423,9 +423,9 @@ independently-tested function in `packages/shared`. See `feature/batch-7b-passin
 
 ## Batch 8 — Search
 
-- [ ] Search box in the top bar
-- [ ] Forgiving matching over item names
-- [ ] Choosing a result focuses that item, reusing batch 5
+- [x] Search box in the top bar
+- [x] Forgiving matching over item names
+- [x] Choosing a result focuses that item, reusing batch 5
 
 **Tests written:** partial words match; capitals do not matter; nonsense returns nothing
 rather than erroring.
@@ -437,6 +437,8 @@ rather than erroring.
 3. Type `alp`. Still finds it.
 4. Type `zzzzz`. A polite "nothing found", not a blank box or an error.
 5. Click a result. The camera should fly to it and open its card.
+
+**Done when:** tested and confirmed working.
 
 ---
 
