@@ -27,7 +27,7 @@ export {
 export { declutterLabels, type LabelCandidate } from "./labelDeclutter";
 export { type ResolvedLink, resolveLink } from "./linkResolver";
 export { findPassedItem, type PassableItem } from "./passedItem";
-export { logScale } from "./scale";
+export { logScale, sqrtScale } from "./scale";
 export { type SearchableItem, searchItems } from "./searchItems";
 export { settleOvershoot, springSettleProgress } from "./springSettle";
 export { computeNiceTicks, niceStep } from "./ticks";

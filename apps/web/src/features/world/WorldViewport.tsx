@@ -13,6 +13,7 @@ import {
   sampleGrid,
   screenToWorld,
   screenToWorldY,
+  sqrtScale,
   verticalCameraToUrlParams,
   worldPositionToCellIndex,
   worldToScreen,
@@ -84,7 +85,7 @@ const GRID_CELL_SIZE_PX = 40;
 // largest, darkest state rather than continuing to grow without bound.
 const MAX_CELL_DENSITY_FOR_STYLING = 50;
 const DOT_MIN_SIZE_PX = 8;
-const DOT_MAX_SIZE_PX = 22;
+const DOT_MAX_SIZE_PX = 26;
 const DOT_MIN_OPACITY = 0.45;
 
 // The one dot on the map that can actually be grabbed to vote gets a floor
@@ -608,7 +609,11 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
       representative,
       members: cell.members,
       count: cell.count,
-      sizePx: logScale(
+      // sqrtScale, not logScale: a log curve front-loads growth so heavily
+      // that most of the size range is already used up by a cell of 10-15
+      // members, leaving a blob that visibly stops growing well before it
+      // reaches MAX_CELL_DENSITY_FOR_STYLING.
+      sizePx: sqrtScale(
         cell.count,
         1,
         MAX_CELL_DENSITY_FOR_STYLING,

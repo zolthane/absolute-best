@@ -32,3 +32,38 @@ export function logScale(
 
   return rangeMin + t * (rangeMax - rangeMin);
 }
+
+/**
+ * Same shape as logScale, but square-root rather than log-scaled - a gentler
+ * curve that still gives diminishing returns for a large value (so one huge
+ * outlier can't dominate) without logScale's front-loading, where most of
+ * the range is already used up by the time the domain reaches double digits.
+ * Used for dot size by cell member count (WorldViewport): a blob should keep
+ * visibly growing well past 10-15 members, not plateau there.
+ */
+export function sqrtScale(
+  value: number,
+  domainMin: number,
+  domainMax: number,
+  rangeMin: number,
+  rangeMax: number,
+): number {
+  if (
+    !Number.isFinite(value) ||
+    !Number.isFinite(domainMin) ||
+    !Number.isFinite(domainMax) ||
+    !Number.isFinite(rangeMin) ||
+    !Number.isFinite(rangeMax) ||
+    domainMin < 0 ||
+    domainMax <= domainMin
+  ) {
+    return rangeMin;
+  }
+
+  const clampedValue = Math.min(Math.max(value, domainMin), domainMax);
+  const sqrtMin = Math.sqrt(domainMin);
+  const sqrtMax = Math.sqrt(domainMax);
+  const t = (Math.sqrt(clampedValue) - sqrtMin) / (sqrtMax - sqrtMin);
+
+  return rangeMin + t * (rangeMax - rangeMin);
+}
