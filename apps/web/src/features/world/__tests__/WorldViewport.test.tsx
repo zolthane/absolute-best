@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Item } from "../../../data/mockItems";
 import { useAuthStore } from "../../auth/authStore";
 import { useEntriesStore } from "../../entries/entriesStore";
-import { useLivingWorldStore } from "../../livingWorld/livingWorldStore";
+import { SIMULATION_INTERVAL_MS, useLivingWorldStore } from "../../livingWorld/livingWorldStore";
 import { useVoteStore } from "../../vote/voteStore";
 import { useCameraStore } from "../cameraStore";
 import { useFocusStore } from "../focusStore";
@@ -871,7 +871,7 @@ describe("WorldViewport", () => {
       const { unmount } = render(<WorldViewport items={items} />);
 
       act(() => {
-        vi.advanceTimersByTime(3500);
+        vi.advanceTimersByTime(SIMULATION_INTERVAL_MS);
       });
       expect(Object.keys(useLivingWorldStore.getState().driftVoterCounts)).toHaveLength(1);
 

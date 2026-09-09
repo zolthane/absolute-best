@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Item } from "../../../data/mockItems";
 import { useEntriesStore } from "../../entries/entriesStore";
 import { useVoteStore } from "../../vote/voteStore";
-import { applyDrift, useLivingWorldStore } from "../livingWorldStore";
+import { applyDrift, SIMULATION_INTERVAL_MS, useLivingWorldStore } from "../livingWorldStore";
 
 beforeEach(() => {
   useLivingWorldStore.setState({
@@ -67,7 +67,7 @@ describe("useLivingWorldStore", () => {
 
   it("simulates a vote on some item after start()", () => {
     useLivingWorldStore.getState().start();
-    vi.advanceTimersByTime(3500);
+    vi.advanceTimersByTime(SIMULATION_INTERVAL_MS);
 
     const state = useLivingWorldStore.getState();
     expect(Object.keys(state.driftScores)).toHaveLength(1);
@@ -79,7 +79,7 @@ describe("useLivingWorldStore", () => {
 
   it("stops cleanly: no further changes happen once stopped", () => {
     useLivingWorldStore.getState().start();
-    vi.advanceTimersByTime(3500);
+    vi.advanceTimersByTime(SIMULATION_INTERVAL_MS);
     const afterFirstTick = useLivingWorldStore.getState().driftScores;
 
     useLivingWorldStore.getState().stop();
@@ -91,7 +91,7 @@ describe("useLivingWorldStore", () => {
   it("does not stack a second interval if start() is called again while running", () => {
     useLivingWorldStore.getState().start();
     useLivingWorldStore.getState().start();
-    vi.advanceTimersByTime(3500);
+    vi.advanceTimersByTime(SIMULATION_INTERVAL_MS);
 
     // A stacked second interval would cause two simulated votes (across
     // however many items they land on) in the same tick instead of one.
@@ -104,7 +104,7 @@ describe("useLivingWorldStore", () => {
   it("keeps voter-count drift within sensible bounds over many ticks - it only ever rises", () => {
     useLivingWorldStore.getState().start();
     for (let i = 0; i < 50; i++) {
-      vi.advanceTimersByTime(3500);
+      vi.advanceTimersByTime(SIMULATION_INTERVAL_MS);
     }
 
     const state = useLivingWorldStore.getState();

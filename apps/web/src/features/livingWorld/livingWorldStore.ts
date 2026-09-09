@@ -4,8 +4,10 @@ import { type Item, mockItems } from "../../data/mockItems";
 import { useEntriesStore } from "../entries/entriesStore";
 import { effectiveItem, useVoteStore } from "../vote/voteStore";
 
-// How often a simulated "someone else just voted" event fires.
-const SIMULATION_INTERVAL_MS = 3500;
+// How often a simulated "someone else just voted" event fires. Exported so
+// tests can advance fake timers by exactly this much, rather than a
+// hardcoded copy of it going stale the next time this is tuned.
+export const SIMULATION_INTERVAL_MS = 1200;
 // Gentler than a real vote's full +-10 (rule R4) - meant to read as
 // background drift, not another dramatic vote landing every few seconds.
 const MAX_SIMULATED_VOTE_MAGNITUDE = 5;
