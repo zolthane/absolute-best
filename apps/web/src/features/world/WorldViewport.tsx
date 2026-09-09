@@ -13,7 +13,6 @@ import {
   sampleGrid,
   screenToWorld,
   screenToWorldY,
-  type VerticalCamera,
   verticalCameraToUrlParams,
   worldPositionToCellIndex,
   worldToScreen,
@@ -24,7 +23,8 @@ import { type Item, mockItems } from "../../data/mockItems";
 import { useAuthStore } from "../auth/authStore";
 import { isItemVotable } from "../auth/voteState";
 import { effectiveItem, useVoteStore } from "../vote/voteStore";
-import { currentViewportSize, useCameraStore } from "./cameraStore";
+import { computeFocusCameraY, currentViewportSize, useCameraStore } from "./cameraStore";
+import { useFocusStore } from "./focusStore";
 import { ItemCard } from "./ItemCard";
 import { ItemDot } from "./ItemDot";
 
@@ -169,8 +169,11 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   const [hoveredItemId, setHoveredItemId] = useState<string | null>(null);
   // Product spec section 3: the chosen item stays highlighted and shows its
   // name/score - a separate, more persistent concept from hover. Only the
-  // focused item's dot can ever be grabbed to vote (section 4).
-  const [focusedItemId, setFocusedItemId] = useState<string | null>(null);
+  // focused item's dot can ever be grabbed to vote (section 4). Lifted into
+  // its own store (not local state) since batch 8's Search, a sibling
+  // component in TopBar, needs to be able to focus an item too.
+  const focusedItemId = useFocusStore((state) => state.focusedItemId);
+  const setFocusedItemId = useFocusStore((state) => state.setFocusedItemId);
   // The in-progress drag (batch 7): present only while a pointer that
   // started on the focused, votable dot is actually being dragged.
   const [voteDrag, setVoteDrag] = useState<{ itemId: string; delta: number } | null>(null);
@@ -646,13 +649,7 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
     setFocusedItemId(item.id);
 
     const targetCamera = computeFocusCamera(item, effectiveItems, viewportWidth);
-    const targetCameraY: VerticalCamera = {
-      centerY: Math.log10(Math.max(item.voterCount, 1)),
-      // Focusing recentres vertically but keeps the current vertical zoom -
-      // the product spec's "20 items either side" rule for X has no obvious
-      // Y equivalent, so this doesn't invent one.
-      zoomY: cameraY.zoomY,
-    };
+    const targetCameraY = computeFocusCameraY(item, cameraY.zoomY);
     useCameraStore.getState().animateTo(targetCamera, targetCameraY);
   };
 

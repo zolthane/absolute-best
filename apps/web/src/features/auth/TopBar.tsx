@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { SearchBox } from "../search/SearchBox";
 import { AuthDialog } from "./AuthDialog";
 import { useAuthStore } from "./authStore";
 
@@ -40,6 +41,8 @@ export function TopBar() {
       <span data-testid="presence-count" className="text-neutral-500 text-xs">
         {presence} on site
       </span>
+
+      <SearchBox />
 
       <div className="flex items-center gap-2">
         {username ? (
