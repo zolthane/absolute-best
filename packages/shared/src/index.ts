@@ -25,6 +25,7 @@ export {
   worldPositionToCellIndex,
 } from "./grid";
 export { declutterLabels, type LabelCandidate } from "./labelDeclutter";
+export { findPassedItem, type PassableItem } from "./passedItem";
 export { logScale } from "./scale";
 export { settleOvershoot, springSettleProgress } from "./springSettle";
 export { computeNiceTicks, niceStep } from "./ticks";

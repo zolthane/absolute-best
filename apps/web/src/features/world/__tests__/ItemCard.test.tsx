@@ -86,6 +86,30 @@ describe("ItemCard", () => {
       expect(screen.getByTestId("vote-preview")).toHaveTextContent("10 - 3 = 7");
     });
 
+    it("shows which item the vote would pass, when there is one", () => {
+      render(
+        <ItemCard
+          item={item}
+          screenX={500}
+          screenY={400}
+          vote={{ delta: 7, isPending: false, onSubmit: vi.fn(), passedItemTitle: "Beta" }}
+        />,
+      );
+      expect(screen.getByTestId("vote-passed-item")).toHaveTextContent("Would pass: Beta");
+    });
+
+    it("shows nothing about passing when there is nothing to pass", () => {
+      render(
+        <ItemCard
+          item={item}
+          screenX={500}
+          screenY={400}
+          vote={{ delta: 7, isPending: false, onSubmit: vi.fn() }}
+        />,
+      );
+      expect(screen.queryByTestId("vote-passed-item")).not.toBeInTheDocument();
+    });
+
     it("shows a Submit button with the signed delta once released (rule R9)", () => {
       const onSubmit = vi.fn();
       render(
