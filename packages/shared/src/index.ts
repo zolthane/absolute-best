@@ -26,6 +26,7 @@ export {
 } from "./grid";
 export { declutterLabels, type LabelCandidate } from "./labelDeclutter";
 export { type ResolvedLink, resolveLink } from "./linkResolver";
+export { MAX_EMPTY_SCREEN_FRACTION, panBoundsX, panBoundsY } from "./panBounds";
 export { findPassedItem, type PassableItem } from "./passedItem";
 export { logScale, sqrtScale } from "./scale";
 export { type SearchableItem, searchItems } from "./searchItems";

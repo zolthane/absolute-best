@@ -34,21 +34,27 @@ describe("minZoomYForItems", () => {
 });
 
 describe("fitVerticalCameraToItems", () => {
-  it("anchors at the ground (1 voter), not the middle of the range", () => {
+  // 80% down, matching WorldViewport's AXIS_TOP_PERCENT - used throughout
+  // this describe block so the ground-at-bottom-edge check below has a real
+  // gap to prove it's closing.
+  const anchorScreenY = 640;
+
+  it("pins the ground (1 voter) to the very bottom edge of the screen, not anchorScreenY's 80%-down position", () => {
     const items: TestItem[] = [{ voterCount: 1 }, { voterCount: 1000 }];
-    expect(fitVerticalCameraToItems(items, 800).centerY).toBe(0);
+    const camera = fitVerticalCameraToItems(items, 800, anchorScreenY);
+    expect(worldToScreenY(0, camera, anchorScreenY)).toBeCloseTo(800, 9);
   });
 
-  it("zooms in further than the bare 'whole world fits' floor", () => {
+  it("zooms in exactly to the floor - no looser, since the floor already leaves the intended top margin", () => {
     const items: TestItem[] = [{ voterCount: 1 }, { voterCount: 1000 }];
     const floor = minZoomYForItems(items, 800);
-    expect(fitVerticalCameraToItems(items, 800).zoomY).toBeGreaterThan(floor);
+    expect(fitVerticalCameraToItems(items, 800, anchorScreenY).zoomY).toBe(floor);
   });
 
   it("is deterministic and unaffected by item order", () => {
     const items: TestItem[] = [{ voterCount: 1000 }, { voterCount: 1 }, { voterCount: 50 }];
-    expect(fitVerticalCameraToItems(items, 800)).toEqual(
-      fitVerticalCameraToItems([...items].reverse(), 800),
+    expect(fitVerticalCameraToItems(items, 800, anchorScreenY)).toEqual(
+      fitVerticalCameraToItems([...items].reverse(), 800, anchorScreenY),
     );
   });
 });

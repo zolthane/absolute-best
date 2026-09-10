@@ -1,3 +1,4 @@
+import { MAX_EMPTY_SCREEN_FRACTION } from "@teeter/shared";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Item } from "../../../data/mockItems";
@@ -16,7 +17,13 @@ import { WorldViewport } from "../WorldViewport";
 beforeEach(() => {
   useCameraStore.setState({
     camera: { center: 0, zoom: 4 },
-    cameraY: { centerY: 0, zoomY: 100 },
+    // centerY 1.6, not 0: at viewportHeight 800 / zoomY 100 / the 80%-down
+    // anchor, panBoundsY's ground floor is exactly 1.6 - the point where
+    // world-Y 0 sits at the very bottom edge. 0 would already be "out of
+    // bounds" below that floor, which used to be harmless when the pan
+    // bound was much looser, but now makes even a zero-delta interaction
+    // look like a clamp happened.
+    cameraY: { centerY: 1.6, zoomY: 100 },
     viewportWidth: 1000,
     viewportHeight: 800,
   });
@@ -84,7 +91,15 @@ describe("WorldViewport", () => {
   });
 
   it("previews an in-progress pan with a CSS transform instead", () => {
-    render(<WorldViewport />);
+    // A large voter count and score spread, not the default mockItems: the
+    // fixture's zoomY (100) is too tight for real mockItems' modest voter
+    // counts to leave both panBoundsY edges non-degenerate (see
+    // panBounds.ts) - this test isn't about that, just about the transform.
+    const items: Item[] = [
+      { id: "a", title: "A", score: -500, voterCount: 10, order: 0, tags: [] },
+      { id: "b", title: "B", score: 500, voterCount: 10_000_000, order: 1, tags: [] },
+    ];
+    render(<WorldViewport items={items} />);
     const viewport = screen.getByTestId("world-viewport");
 
     fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 500 });
@@ -177,11 +192,11 @@ describe("WorldViewport", () => {
       ];
       render(<WorldViewport items={items} />);
 
-      // cameraY is { centerY: 0, zoomY: 100 }, viewportHeight 800: axisTopPx
-      // = 0.8*800 = 640. worldY = log10(100) = 2, so
-      // screenY = 640 - (2-0)*100 = 440.
+      // cameraY is { centerY: 1.6, zoomY: 100 }, viewportHeight 800:
+      // axisTopPx = 0.8*800 = 640. worldY = log10(100) = 2, so
+      // screenY = 640 - (2-1.6)*100 = 600.
       const actualScreenY = Number.parseFloat(screen.getByTestId("item-dot").style.top);
-      expect(actualScreenY).toBeCloseTo(440, 9);
+      expect(actualScreenY).toBeCloseTo(600, 9);
     });
 
     it("does not crash or misplace an item with zero voters", () => {
@@ -315,9 +330,12 @@ describe("WorldViewport", () => {
     });
 
     it("does not reshuffle which items are shown when panning less than one cell", () => {
+      // A wide score spread, not a modest one: too narrow a spread (relative
+      // to camera.zoom) collides with panBoundsX's own margin - see
+      // panBounds.ts - which isn't what this test is about.
       const items: Item[] = [
-        { id: "a", title: "Alpha", score: -50, voterCount: 10, order: 0, tags: [] },
-        { id: "b", title: "Beta", score: 50, voterCount: 10, order: 1, tags: [] },
+        { id: "a", title: "Alpha", score: -500, voterCount: 10, order: 0, tags: [] },
+        { id: "b", title: "Beta", score: 500, voterCount: 10, order: 1, tags: [] },
       ];
       render(<WorldViewport items={items} />);
       const before = screen.getAllByTestId("item-dot").map((dot) => dot.style.left);
@@ -443,15 +461,22 @@ describe("WorldViewport", () => {
 
   describe("vertical camera and label decluttering (batch 6b)", () => {
     it("pans the vertical camera by exactly the dragged distance on a single-pointer drag", () => {
-      render(<WorldViewport />);
+      // A large voter count, not the default mockItems: keeps panBoundsY
+      // comfortably non-degenerate at this fixture's zoomY (see
+      // panBounds.ts) so this small drag isn't clamped at all.
+      const items: Item[] = [
+        { id: "a", title: "A", score: 0, voterCount: 10_000_000, order: 0, tags: [] },
+      ];
+      render(<WorldViewport items={items} />);
       const viewport = screen.getByTestId("world-viewport");
 
       fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 500, clientY: 400 });
       fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 500, clientY: 440 });
       fireEvent.pointerUp(viewport, { pointerId: 1, clientX: 500, clientY: 440 });
 
-      // cameraY.zoomY is 100: dragging 40px down must move centerY by 40/100.
-      expect(useCameraStore.getState().cameraY.centerY).toBeCloseTo(0.4, 9);
+      // cameraY.zoomY is 100: dragging 40px down must move centerY by 40/100,
+      // from the fixture's starting 1.6.
+      expect(useCameraStore.getState().cameraY.centerY).toBeCloseTo(2, 9);
     });
 
     it("zooms the vertical camera in on the wheel, alongside the horizontal one", () => {
@@ -477,12 +502,18 @@ describe("WorldViewport", () => {
       // viewportHeight is 800 (set in beforeEach); minZoomYForItems([1000], 800)
       // is the floor - there is nothing beyond a 1000-voter item to show.
       const decades = Math.max(Math.log10(1000), 1);
-      const minZoomY = 800 / (decades * 1.1);
+      const minZoomY = ((1 - MAX_EMPTY_SCREEN_FRACTION) * 800) / decades;
       expect(useCameraStore.getState().cameraY.zoomY).toBeGreaterThanOrEqual(minZoomY);
     });
 
-    it("never pans further than half a screen past the last item, horizontally", () => {
-      const items: Item[] = [{ id: "a", title: "A", score: 0, voterCount: 10, order: 0, tags: [] }];
+    it("never pans further than panBoundsX's own margin past the last item, horizontally", () => {
+      // Two items, not one: a single item is a degenerate case for a
+      // margin defined relative to the data's own extent (see panBounds.ts's
+      // own tests) - a real spread is what this guardrail actually protects.
+      const items: Item[] = [
+        { id: "a", title: "A", score: -100, voterCount: 10, order: 0, tags: [] },
+        { id: "b", title: "B", score: 200, voterCount: 10, order: 1, tags: [] },
+      ];
       render(<WorldViewport items={items} />);
       const viewport = screen.getByTestId("world-viewport");
 
@@ -490,13 +521,22 @@ describe("WorldViewport", () => {
       fireEvent.pointerMove(viewport, { pointerId: 1, clientX: -5000 });
       fireEvent.pointerUp(viewport, { pointerId: 1, clientX: -5000 });
 
-      // viewportWidth 1000, zoom 4: half a screen is (1000/2)/4 = 125 world
-      // units past the only item's score of 0.
-      expect(useCameraStore.getState().camera.center).toBeCloseTo(125, 9);
+      // viewportWidth 1000, zoom 4: panBoundsX(-100, 200, 1000, 4).maxCenter
+      // is 200 - (1000*0.25)/4 = 137.5 - the point where item "b" (score
+      // 200, the rightmost) sits at exactly the 75% mark on screen, leaving
+      // panBoundsX's 25% margin beyond it and no more.
+      expect(useCameraStore.getState().camera.center).toBeCloseTo(137.5, 9);
     });
 
-    it("never pans further than half a screen past the top item, vertically", () => {
-      const items: Item[] = [{ id: "a", title: "A", score: 0, voterCount: 10, order: 0, tags: [] }];
+    it("never pans further than panBoundsY's own margin past the top item, vertically", () => {
+      // A huge voter count (worldY 7), not the modest one other tests use:
+      // at the global beforeEach's zoomY (100), a small voter count's own
+      // maxCenterY would sit below minCenterY (there isn't enough range at
+      // this zoom to leave both a 25% top margin and a full ground floor at
+      // once - see panBounds.ts's own tests for exactly this crossover).
+      const items: Item[] = [
+        { id: "a", title: "A", score: 0, voterCount: 10_000_000, order: 0, tags: [] },
+      ];
       render(<WorldViewport items={items} />);
       const viewport = screen.getByTestId("world-viewport");
 
@@ -504,10 +544,30 @@ describe("WorldViewport", () => {
       fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 500, clientY: 6000 });
       fireEvent.pointerUp(viewport, { pointerId: 1, clientX: 500, clientY: 6000 });
 
-      // viewportHeight 800, zoomY 100: half a screen is (800/2)/100 = 4 world
-      // units past the only item's voter count (10 -> worldY 1), so the
-      // ceiling is 1 + 4 = 5.
-      expect(useCameraStore.getState().cameraY.centerY).toBeCloseTo(5, 9);
+      // viewportHeight 800, zoomY 100, anchorScreenY 640 (80%):
+      // panBoundsY(7, 800, 640, 100).maxCenterY is 7 - (640-200)/100 = 2.6 -
+      // the point where the top item sits at exactly the 25% mark.
+      expect(useCameraStore.getState().cameraY.centerY).toBeCloseTo(2.6, 9);
+    });
+
+    it("never pans further than the ground floor past world-Y 0, at the opposite extreme", () => {
+      // A huge voter count, same reasoning as the test above: too small a
+      // voter count makes panBoundsY degenerate at this fixture's zoomY.
+      const items: Item[] = [
+        { id: "a", title: "A", score: 0, voterCount: 10_000_000, order: 0, tags: [] },
+      ];
+      render(<WorldViewport items={items} />);
+      const viewport = screen.getByTestId("world-viewport");
+
+      // The opposite drag direction from the test above.
+      fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 500, clientY: 6000 });
+      fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 500, clientY: 400 });
+      fireEvent.pointerUp(viewport, { pointerId: 1, clientX: 500, clientY: 400 });
+
+      // viewportHeight 800, zoomY 100, anchorScreenY 640 (80%):
+      // panBoundsY(1, 800, 640, 100).minCenterY is (800-640)/100 = 1.6 - the
+      // point where the ground (world-Y 0) sits exactly at the bottom edge.
+      expect(useCameraStore.getState().cameraY.centerY).toBeCloseTo(1.6, 9);
     });
 
     it("hides the lower-priority label when two lone items' labels would collide", () => {

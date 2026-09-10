@@ -10,6 +10,8 @@ import {
   minZoomYForItems,
   nextGridZoom,
   niceStep,
+  panBoundsX,
+  panBoundsY,
   sampleGrid,
   screenToWorld,
   screenToWorldY,
@@ -26,7 +28,12 @@ import { isItemVotable } from "../auth/voteState";
 import { useEntriesStore } from "../entries/entriesStore";
 import { applyDrift, useLivingWorldStore } from "../livingWorld/livingWorldStore";
 import { effectiveItem, useVoteStore } from "../vote/voteStore";
-import { computeFocusCameraY, currentViewportSize, useCameraStore } from "./cameraStore";
+import {
+  AXIS_TOP_PERCENT,
+  computeFocusCameraY,
+  currentViewportSize,
+  useCameraStore,
+} from "./cameraStore";
 import { useFocusStore } from "./focusStore";
 import { ItemCard } from "./ItemCard";
 import { ItemDot } from "./ItemDot";
@@ -43,14 +50,6 @@ function distanceBetween(a: Point, b: Point): number {
 function formatVoterTickLabel(decade: number): string {
   return (10 ** decade).toLocaleString();
 }
-
-// Item dots are positioned as if the ground (1 voter) sat this far down the
-// screen, leaving headroom above for the vote-count (Y) axis, which grows
-// upward with no ceiling - most items end up above this line, not below it.
-// Independent of where the ground LINE is actually drawn (batch 6b pinned
-// that to the literal bottom edge instead - see the ruler comment below);
-// this is purely the coordinate system items are placed in.
-const AXIS_TOP_PERCENT = 80;
 
 // Batch 6b: ticks sit at fixed screen positions - like a ruler laid over the
 // map - rather than at their own value's world position, so they no longer
@@ -273,22 +272,28 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   const minZoomY = minZoomYForItems(effectiveItems, viewportHeight);
 
   // Pan bounds (batch 6b): panning or zooming out can reveal empty space
-  // beyond the data, but never more than half a screen of it on either
-  // side - a "there's nothing more to see this way" guardrail for both
-  // axes. Half a screen's worth of world-units depends on the current zoom,
-  // so this is recomputed every render, not a fixed constant.
+  // beyond the data, but never more than panBoundsX/Y's own margin of it -
+  // a "there's nothing more to see this way" guardrail for both axes.
+  // Depends on the current zoom, so this is recomputed every render, not a
+  // fixed constant.
   const scores = effectiveItems.map((item) => item.score);
   const minScore = scores.length > 0 ? Math.min(...scores) : Number.NEGATIVE_INFINITY;
   const maxScore = scores.length > 0 ? Math.max(...scores) : Number.POSITIVE_INFINITY;
-  const halfScreenWorldX = viewportWidth / 2 / camera.zoom;
-  const minCenterX = minScore - halfScreenWorldX;
-  const maxCenterX = maxScore + halfScreenWorldX;
+  const { minCenter: minCenterX, maxCenter: maxCenterX } = panBoundsX(
+    minScore,
+    maxScore,
+    viewportWidth,
+    camera.zoom,
+  );
 
   const maxVoterCount = Math.max(1, ...effectiveItems.map((item) => item.voterCount));
   const maxWorldY = Math.log10(maxVoterCount);
-  const halfScreenWorldY = viewportHeight / 2 / cameraY.zoomY;
-  const minCenterY = 0 - halfScreenWorldY;
-  const maxCenterY = maxWorldY + halfScreenWorldY;
+  const { minCenterY, maxCenterY } = panBoundsY(
+    maxWorldY,
+    viewportHeight,
+    axisTopPx,
+    cameraY.zoomY,
+  );
 
   // Read by the wheel listener below, which is registered once (not on every
   // render) so it isn't re-attached on every zoom tick - see its own comment.

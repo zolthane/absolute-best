@@ -22,6 +22,15 @@ import { mockItems } from "../../data/mockItems";
 // 3: focusing animates smoothly, it does not jump).
 const FOCUS_ANIMATION_MS = 500;
 
+// Item dots are positioned as if the ground (1 voter) sat this far down the
+// screen, leaving headroom above for the vote-count (Y) axis, which grows
+// upward with no ceiling - most items end up above this line, not below it.
+// Independent of where the ground LINE is actually drawn (WorldViewport
+// pins that to the literal bottom edge); this is purely the coordinate
+// system items are placed in, and it's here (not WorldViewport) because
+// fitVerticalCameraToItems needs it too, to compute the default camera.
+export const AXIS_TOP_PERCENT = 80;
+
 /**
  * The actually-visible viewport size. Prefers the VisualViewport API, which
  * tracks the real visible area live as a mobile browser's address bar or
@@ -60,7 +69,8 @@ function initialVerticalCamera(viewportHeight: number): VerticalCamera {
     new URLSearchParams(window.location.search),
     minZoomY,
   );
-  return fromUrl ?? fitVerticalCameraToItems(mockItems, viewportHeight);
+  const anchorScreenY = (AXIS_TOP_PERCENT / 100) * viewportHeight;
+  return fromUrl ?? fitVerticalCameraToItems(mockItems, viewportHeight, anchorScreenY);
 }
 
 interface CameraState {
