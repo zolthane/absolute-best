@@ -571,9 +571,84 @@ describe("WorldViewport", () => {
       expect(labelsAfter).not.toEqual(labelsBefore);
     });
 
+    it("updates the X tick labels live, mid-drag, not just once the pan is committed", () => {
+      // Reported bug: the printed numbers stayed frozen at their pre-drag
+      // values for the whole gesture (only the CSS preview transform moved
+      // the items), so nothing ever lined up until release, at which point
+      // everything jumped to the correct values at once.
+      render(<WorldViewport items={items} />);
+      const labelsBefore = screen.getAllByTestId("world-tick").map((tick) => tick.textContent);
+
+      const viewport = screen.getByTestId("world-viewport");
+      fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 500 });
+      fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 100 });
+
+      // No pointerUp yet - still mid-gesture.
+      const labelsDuring = screen.getAllByTestId("world-tick").map((tick) => tick.textContent);
+      expect(labelsDuring).not.toEqual(labelsBefore);
+    });
+
+    it("updates the Y tick labels live, mid-drag, not just once the pan is committed", () => {
+      render(<WorldViewport items={items} />);
+      const labelsBefore = screen.getAllByTestId("world-tick-y").map((tick) => tick.textContent);
+
+      const viewport = screen.getByTestId("world-viewport");
+      fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 500, clientY: 400 });
+      fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 500, clientY: 250 });
+
+      const labelsDuring = screen.getAllByTestId("world-tick-y").map((tick) => tick.textContent);
+      expect(labelsDuring).not.toEqual(labelsBefore);
+    });
+
     it("pins the ground line and grid to the bottom/left edges of the viewport, not the world", () => {
       render(<WorldViewport items={items} />);
       expect(screen.getByTestId("world-axis")).toHaveClass("bottom-0");
+    });
+  });
+
+  describe("reference lines", () => {
+    const items: Item[] = [
+      { id: "a", title: "A", score: -1000, voterCount: 10, order: 0, tags: [] },
+      { id: "b", title: "B", score: 1000, voterCount: 10, order: 1, tags: [] },
+    ];
+
+    it("draws a bold vertical line at score 0, matching the fulcrum", () => {
+      render(<WorldViewport items={items} />);
+      // camera is centred on 0 (beforeEach), so world 0 sits at the
+      // horizontal centre, 500px into the 1000px-wide viewport.
+      const zeroLine = screen.getByTestId("world-zero-line");
+      expect(zeroLine).toHaveAttribute("x1", "500");
+      expect(zeroLine).toHaveAttribute("x2", "500");
+      expect(zeroLine).toHaveAttribute("y1", "0");
+      expect(zeroLine).toHaveAttribute("y2", "800");
+    });
+
+    it("draws the two +-10-per-vote reference curves starting from the ground", () => {
+      render(<WorldViewport items={items} />);
+      const [positiveCurve, negativeCurve] = screen.getAllByTestId("world-vote-bound-line");
+
+      // At 1 voter (world-Y 0) the ground sits at screenY 640 (axisTopPx,
+      // 80% of the beforeEach's 800 viewportHeight; cameraY's centerY 0
+      // means no further offset). The most a single vote could ever add is
+      // +-10, so that's where each curve starts: screenX 540 (500 + 10*4)
+      // for +10, 460 (500 - 10*4) for -10, at the beforeEach's zoom of 4.
+      expect(positiveCurve?.getAttribute("points")?.split(" ")[0]).toBe("540,640");
+      expect(negativeCurve?.getAttribute("points")?.split(" ")[0]).toBe("460,640");
+    });
+
+    it("nests the fulcrum and reference lines inside world-content, so they track the live drag preview like items do", () => {
+      // Reported bug: the fulcrum (and, before this, nothing represented the
+      // vote bounds at all) sat alongside the fixed ruler instead, so it
+      // stayed frozen for an entire drag gesture while the items it's meant
+      // to be positioned relative to visibly slid underneath it via
+      // world-content's live CSS preview transform.
+      render(<WorldViewport items={items} />);
+      const worldContent = screen.getByTestId("world-content");
+      expect(worldContent).toContainElement(screen.getByTestId("world-fulcrum"));
+      expect(worldContent).toContainElement(screen.getByTestId("world-zero-line"));
+      for (const curve of screen.getAllByTestId("world-vote-bound-line")) {
+        expect(worldContent).toContainElement(curve);
+      }
     });
   });
 

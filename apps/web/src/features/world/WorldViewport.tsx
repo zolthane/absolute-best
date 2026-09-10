@@ -108,6 +108,12 @@ const LABEL_HEIGHT_PX = 14;
 // Rule R4: a vote is always the full -10..10 range, centred on the item.
 const MAX_VOTE_MAGNITUDE = 10;
 
+// How many segments the two +-10-votes-forever reference curves are drawn
+// with - enough to look smooth on the exponential-looking curve a constant
+// score-per-vote traces against the log-scaled Y axis, without computing an
+// excessive number of points every render.
+const VOTE_BOUND_SAMPLE_COUNT = 40;
+
 // Screen pixels of drag per point of vote delta - deliberately independent
 // of camera.zoom (the map's own pan/zoom), which used to drive this: reached
 // +-10 only by dragging the full width of the screen at a typical zoomed-out
@@ -216,6 +222,15 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   // zoom independently (batch 6b).
   const gridZoomRef = useRef(camera.zoom);
   const gridZoomYRef = useRef(cameraY.zoomY);
+  // Keyed by each tick's fixed screen position (the ruler design: ticks stay
+  // put on screen, only their printed number changes - see the ruler
+  // comment below). Populated by a ref callback on each label span, so an
+  // in-progress pan can update their text directly during handlePointerMove,
+  // the same no-store-write, no-re-render trick already used for the CSS
+  // preview transform - keeping the printed numbers in sync with the items
+  // sliding underneath them, rather than going stale until the drag commits.
+  const xTickLabelRefs = useRef(new Map<number, HTMLSpanElement>());
+  const yTickLabelRefs = useRef(new Map<number, HTMLSpanElement>());
 
   // The viewport is assumed to fill the browser window (see App.tsx), so
   // window dimensions double as viewport dimensions - this sidesteps
@@ -366,11 +381,14 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
     }
   };
 
-  // What panCamera/panCameraY would actually do with `delta`, once their own
-  // pan-bound clamp is applied - used to make the live drag preview stop at
-  // the same boundary in real time, instead of rubber-banding back to it
-  // only once the gesture commits.
-  const clampedPanDelta = (
+  // What panCamera/panCameraY would actually settle `currentCenter` to with
+  // `delta` applied, once their own pan-bound clamp is applied - used both to
+  // make the live drag preview stop at the same boundary in real time
+  // instead of rubber-banding back to it only once the gesture commits, and
+  // to keep the ruler's printed numbers accurate during that same live
+  // preview (see the tick-label refs below) instead of only updating once
+  // the pan is committed to the store.
+  const clampedPanCenter = (
     currentCenter: number,
     zoom: number,
     delta: number,
@@ -378,8 +396,7 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
     maxCenter: number,
   ): number => {
     const rawCenter = currentCenter - delta / zoom;
-    const clampedCenter = Math.min(maxCenter, Math.max(minCenter, rawCenter));
-    return (currentCenter - clampedCenter) * zoom;
+    return Math.min(maxCenter, Math.max(minCenter, rawCenter));
   };
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -462,25 +479,48 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
       // Clamped the same way the eventual commit will be, so the preview
       // stops at the pan boundary in real time instead of rubber-banding
       // back once the gesture ends.
-      const liveDeltaX = clampedPanDelta(
+      const previewCenterX = clampedPanCenter(
         camera.center,
         camera.zoom,
         rawDeltaX,
         minCenterX,
         maxCenterX,
       );
-      const liveDeltaY = clampedPanDelta(
+      const previewCenterY = clampedPanCenter(
         cameraY.centerY,
         cameraY.zoomY,
         rawDeltaY,
         minCenterY,
         maxCenterY,
       );
+      const liveDeltaX = (camera.center - previewCenterX) * camera.zoom;
+      const liveDeltaY = (cameraY.centerY - previewCenterY) * cameraY.zoomY;
       // Only a CSS transform is touched here - no store update, no React
       // re-render - so panning stays smooth regardless of how many pointer
       // events the browser fires per second (trackpads fire a lot of them).
       if (worldContentRef.current) {
         worldContentRef.current.style.transform = `translate(${liveDeltaX}px, ${liveDeltaY}px)`;
+      }
+      // The ruler ticks stay put on screen by design (see the ruler comment
+      // below) - but the number each one prints must still track this same
+      // preview, or it goes stale (still showing the value from before the
+      // drag started) for the whole gesture, snapping to the truth only once
+      // the pointer lifts - reported as the printed numbers, especially
+      // along the bottom, never quite lining up with the items sliding past
+      // underneath them. Mutated directly rather than through React state
+      // for the same reason the transform above is: this runs on every
+      // pointermove.
+      const previewCameraX = { center: previewCenterX, zoom: camera.zoom };
+      for (const [x, label] of xTickLabelRefs.current) {
+        const value =
+          worldStepX * Math.round(screenToWorld(x, previewCameraX, viewportWidth) / worldStepX);
+        label.textContent = String(value);
+      }
+      const previewCameraY = { centerY: previewCenterY, zoomY: cameraY.zoomY };
+      for (const [y, label] of yTickLabelRefs.current) {
+        const decade =
+          decadeStepY * Math.round(screenToWorldY(y, previewCameraY, axisTopPx) / decadeStepY);
+        label.textContent = formatVoterTickLabel(decade);
       }
       return;
     }
@@ -538,6 +578,28 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   const visibleWorldWidth = visibleMaxWorld - visibleMinWorld;
   const bufferWorldWidth = visibleWorldWidth * PAN_BUFFER_FACTOR;
   const fulcrumScreenX = worldToScreen(0, camera, viewportWidth);
+
+  // The two curves an item would trace if it received nothing but +10 or
+  // -10 votes for its entire life (score = +-MAX_VOTE_MAGNITUDE *
+  // voterCount) - a visual reference for how extreme a score actually is,
+  // since otherwise the map has no way to show that a modest-looking score
+  // only came from a huge number of votes, or vice versa. Sampled uniformly
+  // in world-Y from the ground (1 voter, world-Y 0) up to past the visible
+  // top, with the same kind of buffer PAN_BUFFER_FACTOR gives items, so the
+  // curve doesn't visibly end mid-screen while zoomed in near the top.
+  const visibleTopWorldY = screenToWorldY(0, cameraY, axisTopPx);
+  const visibleBottomWorldY = screenToWorldY(viewportHeight, cameraY, axisTopPx);
+  const worldYSpan = Math.max(0, visibleTopWorldY - visibleBottomWorldY);
+  const voteBoundTopWorldY = Math.max(visibleTopWorldY, maxWorldY) + worldYSpan * PAN_BUFFER_FACTOR;
+  const voteBoundPoints = (sign: 1 | -1): string =>
+    Array.from({ length: VOTE_BOUND_SAMPLE_COUNT + 1 }, (_, i) => {
+      const worldY = (voteBoundTopWorldY * i) / VOTE_BOUND_SAMPLE_COUNT;
+      const voterCount = 10 ** worldY;
+      const score = sign * MAX_VOTE_MAGNITUDE * voterCount;
+      const x = worldToScreen(score, camera, viewportWidth);
+      const y = worldToScreenY(worldY, cameraY, axisTopPx);
+      return `${x},${y}`;
+    }).join(" ");
 
   // Fixed screen columns (batch 6b's ruler - see its comment above), one
   // roughly every RULER_TICK_SPACING_TARGET_PX. worldStepX is rounded up to
@@ -824,12 +886,6 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
         className="pointer-events-none absolute inset-x-0 bottom-0 h-0.5 bg-black"
       />
 
-      <div
-        data-testid="world-fulcrum"
-        className="pointer-events-none absolute bottom-0 h-0 w-0 border-x-[6px] border-b-[9px] border-x-transparent border-b-black"
-        style={{ left: fulcrumScreenX, transform: "translate(-50%, 3px)" }}
-      />
-
       {columnsX.map((x) => {
         const value = worldStepX * Math.round(screenToWorld(x, camera, viewportWidth) / worldStepX);
         return (
@@ -839,7 +895,18 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
             className="pointer-events-none absolute bottom-0 flex -translate-x-1/2 flex-col items-center pb-1"
             style={{ left: x }}
           >
-            <span className="mb-1 font-bold text-neutral-700 text-xs">{value}</span>
+            <span
+              ref={(el) => {
+                if (el) {
+                  xTickLabelRefs.current.set(x, el);
+                } else {
+                  xTickLabelRefs.current.delete(x);
+                }
+              }}
+              className="mb-1 font-bold text-neutral-700 text-xs"
+            >
+              {value}
+            </span>
             <div className="h-2 w-px bg-neutral-400" />
           </div>
         );
@@ -856,7 +923,16 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
             style={{ top: y, left: 4 }}
           >
             <div className="h-px w-2 bg-neutral-400" />
-            <span className="font-bold text-neutral-700 text-xs">
+            <span
+              ref={(el) => {
+                if (el) {
+                  yTickLabelRefs.current.set(y, el);
+                } else {
+                  yTickLabelRefs.current.delete(y);
+                }
+              }}
+              className="font-bold text-neutral-700 text-xs"
+            >
               {formatVoterTickLabel(decade)}
             </span>
           </div>
@@ -871,6 +947,56 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
         className="absolute inset-0"
         onClick={handleBackgroundClick}
       >
+        {/* Moved inside world-content (rather than sitting alongside the
+            fixed ruler above) so it slides with the same live-drag preview
+            transform as the items it marks a position among - it represents
+            a world position, not a ruler tick, and previously stayed frozen
+            for the whole gesture instead of tracking the drag like the item
+            dots underneath it. */}
+        <div
+          data-testid="world-fulcrum"
+          className="pointer-events-none absolute bottom-0 h-0 w-0 border-x-[6px] border-b-[9px] border-x-transparent border-b-black"
+          style={{ left: fulcrumScreenX, transform: "translate(-50%, 3px)" }}
+        />
+
+        {/* Three bold reference lines, for the same reason the fulcrum
+            moved above: they mark world positions (not ruler ticks), so
+            they belong to the live-drag preview too. A vertical line at
+            score 0, and the two curves an item would trace if every single
+            vote it ever got was the maximum +10 or -10 (see
+            VOTE_BOUND_SAMPLE_COUNT's comment) - together, a visual sense of
+            how extreme a position on the map actually is. */}
+        <svg
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0"
+          width={viewportWidth}
+          height={viewportHeight}
+        >
+          <line
+            data-testid="world-zero-line"
+            x1={fulcrumScreenX}
+            y1={0}
+            x2={fulcrumScreenX}
+            y2={viewportHeight}
+            stroke="black"
+            strokeWidth={2}
+          />
+          <polyline
+            data-testid="world-vote-bound-line"
+            points={voteBoundPoints(1)}
+            fill="none"
+            stroke="black"
+            strokeWidth={2}
+          />
+          <polyline
+            data-testid="world-vote-bound-line"
+            points={voteBoundPoints(-1)}
+            fill="none"
+            stroke="black"
+            strokeWidth={2}
+          />
+        </svg>
+
         {cellRenderData.map(({ representative, count, sizePx, opacity }) => {
           const isVotable = isItemVotable(isLoggedIn, votes[representative.item.id] !== undefined);
           const isFocused = representative.item.id === focusedItemId;
