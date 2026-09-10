@@ -38,54 +38,54 @@ folder's own `README.md`.
 **Groundswell** — a real term for a mass of opinion building up from below — matches the
 "many small opinions accumulating into something visible" mechanic, and happens to
 match the growth-shaped visual too.
-- [ ] Yes   - [ ] No   - [ ] Maybe
+- [ ] Yes   - [ ] No   - [x] Maybe
 
 **Confluence** — many separate currents converging into one visible shape.
-- [ ] Yes   - [ ] No   - [ ] Maybe
+- [ ] Yes   - [ ] No   - [x] Maybe
 
 **Canopy** — closest match to the "tree" reading specifically — established consensus
 as the canopy, niche takes as scattered undergrowth below it.
-- [ ] Yes   - [ ] No   - [ ] Maybe
+- [ ] Yes   - [ ] No   - [x] Maybe
 
 **Throughline** — softer and more abstract — less tied to any one specific visual, more
 about the thread connecting many opinions.
-- [ ] Yes   - [ ] No   - [ ] Maybe
+- [ ] Yes   - [x] No   - [ ] Maybe
 
 **Common Ground** — plain-spoken, tells you what the product is for without needing a
 visual metaphor at all.
-- [ ] Yes   - [ ] No   - [ ] Maybe
+- [ ] Yes   - [x] No   - [ ] Maybe
 
 **The Consensus** — blunt and literal — says exactly what the map is showing.
-- [ ] Yes   - [ ] No   - [ ] Maybe
+- [ ] Yes   - [x] No   - [ ] Maybe
 
 **Undercurrent** — quieter framing — opinion building beneath the surface before it's
 visible.
-- [ ] Yes   - [ ] No   - [ ] Maybe
+- [ ] Yes   - [x] No   - [ ] Maybe
 
 **Weigh In** — a tagline-shaped name — literally what casting a vote is.
-- [ ] Yes   - [ ] No   - [ ] Maybe
+- [ ] Yes   - [ ] No   - [x] Maybe
 
 **Ground Truth** — double meaning: the "true" state of consensus, plus an echo of the
 earth/growth imagery.
-- [ ] Yes   - [ ] No   - [ ] Maybe
+- [ ] Yes   - [x] No   - [ ] Maybe
 
 **Sprout** — short, plain version of the tree/growth reading.
-- [ ] Yes   - [ ] No   - [ ] Maybe
+- [x] Yes   - [ ] No   - [ ] Maybe
 
 **Verdict** — blunt like "The Consensus," but with a courtroom/judgment flavor rather
 than a geological one.
-- [ ] Yes   - [ ] No   - [ ] Maybe
+- [ ] Yes   - [ ] No   - [x] Maybe
 
 **The Tally** — plain-spoken, count-based — no metaphor to explain at all.
-- [ ] Yes   - [ ] No   - [ ] Maybe
+- [ ] Yes   - [x] No   - [ ] Maybe
 
 **Fault Lines** — where opinion visibly splits rather than agrees; also a nice fit if
 "most controversial" (see the race concept below) ever becomes a real, tracked metric.
-- [ ] Yes   - [ ] No   - [ ] Maybe
+- [ ] Yes   - [ ] No   - [ x] Maybe
 
 **Majority Rules** — blunt and literal, in the same family as "The Consensus" and
 "Verdict."
-- [ ] Yes   - [ ] No   - [ ] Maybe
+- [ ] Yes   - [ ] No   - [x] Maybe
 
 ---
 
@@ -93,17 +93,17 @@ than a geological one.
 
 **"Find your level"** — pairs with keeping "Teeter" — still balance-flavored, but about
 settling rather than a literal two-sided tip.
-- [ ] Yes   - [ ] No   - [ ] Maybe
+- [ ] Yes   - [x] No   - [ ] Maybe
 
 **"Where opinions take root"** — pairs with a tree/growth-named rebrand (e.g. Canopy).
-- [ ] Yes   - [ ] No   - [ ] Maybe
+- [ ] Yes   - [x] No   - [ ] Maybe
 
 **"Watch consensus grow"** — pairs with any growth-themed rebrand.
-- [ ] Yes   - [ ] No   - [ ] Maybe
+- [ ] Yes   - [ ] No   - [x] Maybe
 
 **"See what the world settles on"** — works with either "Teeter" or a rebrand — doesn't
 depend on a specific visual metaphor.
-- [ ] Yes   - [ ] No   - [ ] Maybe
+- [ ] Yes   - [ ] No   - [x] Maybe
 
 ---
 
@@ -117,7 +117,7 @@ right), each running toward a signpost — **Most Hated**, **Most Controversial*
 Loved**. Items appear as racers on whichever lane fits them, positioned along it by how
 extreme they are in that direction, rather than scattered across one open 2D field the
 way the current map works.
-- [ ] Yes   - [ ] No   - [ ] Maybe
+- [x] Yes   - [ ] No   - [ ] Maybe
 
 **What this would actually need, mechanically:** "most loved" and "most hated" already
 fall out of score today, but "most controversial" doesn't — controversy is about how
@@ -130,34 +130,34 @@ gap worth remembering if this direction is ever pursued — not something to bui
 **Matching name variants**, same racing/competitive vibe:
 
 **Three Lanes** — plain description of the visual itself.
-- [ ] Yes   - [ ] No   - [ ] Maybe
+- [ ] Yes   - [ ] No   - [x] Maybe
 
 **Photo Finish** — the moment of comparison — who's ahead right now.
-- [ ] Yes   - [ ] No   - [ ] Maybe
+- [ ] Yes   - [x] No   - [ ] Maybe
 
 **Pole Position** — being in the lead in whichever lane.
-- [ ] Yes   - [ ] No   - [ ] Maybe
+- [ ] Yes   - [x] No   - [ ] Maybe
 
 **Neck and Neck** — emphasizes close competition rather than a runaway leader.
-- [ ] Yes   - [ ] No   - [ ] Maybe
+- [ ] Yes   - [x] No   - [ ] Maybe
 
 **The Standings** — leaderboard-flavored, less literally about racing.
-- [ ] Yes   - [ ] No   - [ ] Maybe
+- [ ] Yes   - [ ] No   - [x] Maybe
 
 **Leaderboard** — the most literally gamified option of the set; no subtlety, reads
 instantly as a game.
-- [ ] Yes   - [ ] No   - [ ] Maybe
+- [ ] Yes   - [ ] No   - [x] Maybe
 
 **Taglines for this direction:**
 
 **"Pick a lane."**
-- [ ] Yes   - [ ] No   - [ ] Maybe
+- [ ] Yes   - [x] No   - [ ] Maybe
 
 **"Everyone's racing for a verdict."**
-- [ ] Yes   - [ ] No   - [ ] Maybe
+- [ ] Yes   - [x] No   - [ ] Maybe
 
 **"Where opinions compete."**
-- [ ] Yes   - [ ] No   - [ ] Maybe
+- [ ] Yes   - [ ] No   - [x] Maybe
 
 ---
 
