@@ -63,7 +63,13 @@ export function ItemDot({
           // items with close voter counts can sit only a few pixels apart
           // vertically, and without this, a nearby dot bled into the text
           // (or the text bled into it) and made both hard to read.
-          className="-translate-x-1/2 absolute z-10 whitespace-nowrap rounded-sm bg-white/90 px-0.5 text-[10px] text-neutral-700"
+          // pointer-events-none: purely decorative, not clickable - without
+          // this, a click landing on a label's padded backdrop (which reads
+          // as empty space to the user) became the click's target instead of
+          // world-content underneath it, so handleBackgroundClick's
+          // target-is-currentTarget check silently failed and the focused
+          // item's card looked stuck open.
+          className="-translate-x-1/2 absolute z-10 whitespace-nowrap rounded-sm bg-white/90 px-0.5 text-[10px] text-neutral-700 pointer-events-none"
           style={{ left: screenX, top: screenY + sizePx / 2 + 4 }}
         >
           {title}

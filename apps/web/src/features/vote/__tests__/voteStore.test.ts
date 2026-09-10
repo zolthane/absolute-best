@@ -5,7 +5,7 @@ import { effectiveItem, useVoteStore } from "../voteStore";
 const item: Item = { id: "a", title: "Alpha", score: 20, voterCount: 5, order: 0, tags: [] };
 
 beforeEach(() => {
-  useVoteStore.setState({ votes: {}, settlingScores: {} });
+  useVoteStore.setState({ votes: {}, settlingScores: {}, settlingVoterCounts: {} });
   // requestAnimationFrame is never allowed to actually fire in these tests:
   // jsdom's rAF timestamps don't line up with performance.now() (see
   // cameraStore's own animateTo tests for the same issue), so a real
@@ -28,11 +28,12 @@ describe("castVote", () => {
     expect(useVoteStore.getState().hasVoted("untouched")).toBe(false);
   });
 
-  it("starts the settle animation at the item's pre-vote score", () => {
+  it("starts the settle animation at the item's pre-vote score and voter count", () => {
     useVoteStore.getState().castVote(item.id, item.score, item.voterCount, 7);
     // Set synchronously, before the first animation frame - see the
     // implementation comment for why this matters.
     expect(useVoteStore.getState().settlingScores[item.id]).toBe(item.score);
+    expect(useVoteStore.getState().settlingVoterCounts[item.id]).toBe(item.voterCount);
   });
 
   it("skips the settle animation entirely when prefers-reduced-motion is set", () => {
@@ -44,6 +45,7 @@ describe("castVote", () => {
 
     expect(useVoteStore.getState().votes[item.id]).toBe(7);
     expect(useVoteStore.getState().settlingScores[item.id]).toBeUndefined();
+    expect(useVoteStore.getState().settlingVoterCounts[item.id]).toBeUndefined();
   });
 });
 
@@ -61,9 +63,15 @@ describe("effectiveItem", () => {
   it("uses the live settling score in place of the final score while animating", () => {
     const result = effectiveItem(item, { [item.id]: 7 }, { [item.id]: 23 });
     expect(result.score).toBe(23);
-    // Voter count already reflects the vote throughout the animation - only
-    // the score position is what's animating.
+    // No settlingVoterCounts passed here - falls back to the committed
+    // value, same as it would once the animation finishes.
     expect(result.voterCount).toBe(6);
+  });
+
+  it("uses the live settling voter count in place of the final one while animating", () => {
+    const result = effectiveItem(item, { [item.id]: 7 }, { [item.id]: 23 }, { [item.id]: 5.4 });
+    expect(result.score).toBe(23);
+    expect(result.voterCount).toBe(5.4);
   });
 
   it("never mutates the original item object", () => {

@@ -11,10 +11,13 @@ import { effectiveItem, useVoteStore } from "../vote/voteStore";
  * WorldViewport - ever need to see a smaller, overridden set for testing.
  */
 export function getFullEffectiveItems(): Item[] {
-  const { votes, settlingScores } = useVoteStore.getState();
+  const { votes, settlingScores, settlingVoterCounts } = useVoteStore.getState();
   const entries = Object.values(useEntriesStore.getState().itemsByIdentifier);
-  const { driftScores, driftVoterCounts, settlingDrift } = useLivingWorldStore.getState();
+  const { driftScores, driftVoterCounts, settlingDrift, settlingDriftVoterCounts } =
+    useLivingWorldStore.getState();
   return [...mockItems, ...entries]
-    .map((item) => effectiveItem(item, votes, settlingScores))
-    .map((item) => applyDrift(item, driftScores, driftVoterCounts, settlingDrift));
+    .map((item) => effectiveItem(item, votes, settlingScores, settlingVoterCounts))
+    .map((item) =>
+      applyDrift(item, driftScores, driftVoterCounts, settlingDrift, settlingDriftVoterCounts),
+    );
 }

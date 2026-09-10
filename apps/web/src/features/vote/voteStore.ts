@@ -4,7 +4,7 @@ import type { Item } from "../../data/mockItems";
 
 // How long the weighted-settle animation (product spec 9.2, decision W2)
 // takes to finish, once Submit is pressed.
-const SETTLE_ANIMATION_MS = 500;
+const SETTLE_ANIMATION_MS = 300;
 
 interface VoteState {
   // itemId -> the committed vote (whole number, -10..10). Rule R3: a vote is
@@ -14,6 +14,12 @@ interface VoteState {
   // running. Present only for the (at most one, in Stage 0) item currently
   // mid-animation; absent otherwise, including once it finishes.
   settlingScores: Record<string, number>;
+  // itemId -> the item's animated voter count over the same window as
+  // settlingScores. A vote moves an item both sideways (score) and upward
+  // (voter count, on the log-scaled Y axis) - without this, voter count
+  // jumped to its final value instantly while score eased in, so the item
+  // only ever appeared to slide sideways.
+  settlingVoterCounts: Record<string, number>;
   hasVoted: (itemId: string) => boolean;
   // `scoreBeforeVote`/`voterCountBeforeVote` are supplied by the caller
   // rather than looked up here - this store holds only the vote itself, not
@@ -30,6 +36,7 @@ interface VoteState {
 export const useVoteStore = create<VoteState>((set, get) => ({
   votes: {},
   settlingScores: {},
+  settlingVoterCounts: {},
 
   hasVoted: (itemId) => get().votes[itemId] !== undefined,
 
@@ -47,10 +54,14 @@ export const useVoteStore = create<VoteState>((set, get) => ({
     }
 
     const toScore = scoreBeforeVote + delta;
+    const toVoterCount = voterCountBeforeVote + 1;
     // Set synchronously (rather than waiting for the first animation frame)
     // so the very next render already shows the start position instead of
     // the item's finished, post-vote score flashing up for one frame first.
-    set((state) => ({ settlingScores: { ...state.settlingScores, [itemId]: scoreBeforeVote } }));
+    set((state) => ({
+      settlingScores: { ...state.settlingScores, [itemId]: scoreBeforeVote },
+      settlingVoterCounts: { ...state.settlingVoterCounts, [itemId]: voterCountBeforeVote },
+    }));
     const startTime = performance.now();
 
     function step(now: number) {
@@ -59,14 +70,22 @@ export const useVoteStore = create<VoteState>((set, get) => ({
         set((state) => {
           const nextSettlingScores = { ...state.settlingScores };
           delete nextSettlingScores[itemId];
-          return { settlingScores: nextSettlingScores };
+          const nextSettlingVoterCounts = { ...state.settlingVoterCounts };
+          delete nextSettlingVoterCounts[itemId];
+          return {
+            settlingScores: nextSettlingScores,
+            settlingVoterCounts: nextSettlingVoterCounts,
+          };
         });
         return;
       }
       const progress = springSettleProgress(t, voterCountBeforeVote);
       const currentScore = scoreBeforeVote + (toScore - scoreBeforeVote) * progress;
+      const currentVoterCount =
+        voterCountBeforeVote + (toVoterCount - voterCountBeforeVote) * progress;
       set((state) => ({
         settlingScores: { ...state.settlingScores, [itemId]: currentScore },
+        settlingVoterCounts: { ...state.settlingVoterCounts, [itemId]: currentVoterCount },
       }));
       requestAnimationFrame(step);
     }
@@ -86,15 +105,17 @@ export function effectiveItem(
   item: Item,
   votes: Record<string, number>,
   settlingScores: Record<string, number>,
+  settlingVoterCounts: Record<string, number> = {},
 ): Item {
   const delta = votes[item.id];
   if (delta === undefined) {
     return item;
   }
   const settlingScore = settlingScores[item.id];
+  const settlingVoterCount = settlingVoterCounts[item.id];
   return {
     ...item,
     score: settlingScore ?? item.score + delta,
-    voterCount: item.voterCount + 1,
+    voterCount: settlingVoterCount ?? item.voterCount + 1,
   };
 }

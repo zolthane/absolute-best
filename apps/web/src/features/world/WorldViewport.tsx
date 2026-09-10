@@ -13,6 +13,7 @@ import {
   sampleGrid,
   screenToWorld,
   screenToWorldY,
+  sqrtScale,
   verticalCameraToUrlParams,
   worldPositionToCellIndex,
   worldToScreen,
@@ -84,12 +85,16 @@ const GRID_CELL_SIZE_PX = 40;
 // largest, darkest state rather than continuing to grow without bound.
 const MAX_CELL_DENSITY_FOR_STYLING = 50;
 const DOT_MIN_SIZE_PX = 8;
-const DOT_MAX_SIZE_PX = 22;
+const DOT_MAX_SIZE_PX = 44;
 const DOT_MIN_OPACITY = 0.45;
 
 // The one dot on the map that can actually be grabbed to vote gets a floor
-// on its size, bigger than even the largest density-based DOT_MAX_SIZE_PX -
-// easier to hit with a mouse, and especially with a finger.
+// on its size - easier to hit with a mouse, and especially with a finger,
+// than whatever its natural density-based size would otherwise be (e.g. a
+// lone, obscure item at DOT_MIN_SIZE_PX). Deliberately not tied to
+// DOT_MAX_SIZE_PX any more (feedback: a focused dot enlarged to match a
+// large crowded blob looked wrong) - a crowded cell can now visually outsize
+// the focused dot, which is fine.
 const FOCUSED_VOTABLE_DOT_MIN_PX = 28;
 
 // A rough estimate of a label's on-screen box, used only to decide whether
@@ -164,10 +169,12 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   const isLoggedIn = useAuthStore((state) => state.username !== null);
   const votes = useVoteStore((state) => state.votes);
   const settlingScores = useVoteStore((state) => state.settlingScores);
+  const settlingVoterCounts = useVoteStore((state) => state.settlingVoterCounts);
   const entriesByIdentifier = useEntriesStore((state) => state.itemsByIdentifier);
   const driftScores = useLivingWorldStore((state) => state.driftScores);
   const driftVoterCounts = useLivingWorldStore((state) => state.driftVoterCounts);
   const settlingDrift = useLivingWorldStore((state) => state.settlingDrift);
+  const settlingDriftVoterCounts = useLivingWorldStore((state) => state.settlingDriftVoterCounts);
   // Just the id, not the whole GridItem: that object's screenX/screenY would
   // go stale if the camera moves while hovering (e.g. zooming with the wheel
   // without moving the mouse) - looking it up fresh from `cells` every
@@ -256,8 +263,10 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   // in positioning, grid membership, and the card - not special-cased in
   // each place.
   const effectiveItems = [...items, ...addedItems]
-    .map((item) => effectiveItem(item, votes, settlingScores))
-    .map((item) => applyDrift(item, driftScores, driftVoterCounts, settlingDrift));
+    .map((item) => effectiveItem(item, votes, settlingScores, settlingVoterCounts))
+    .map((item) =>
+      applyDrift(item, driftScores, driftVoterCounts, settlingDrift, settlingDriftVoterCounts),
+    );
 
   const axisTopPx = (AXIS_TOP_PERCENT / 100) * viewportHeight;
   // The floor vertical zoom can never go below - see minZoomYForItems.
@@ -608,7 +617,11 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
       representative,
       members: cell.members,
       count: cell.count,
-      sizePx: logScale(
+      // sqrtScale, not logScale: a log curve front-loads growth so heavily
+      // that most of the size range is already used up by a cell of 10-15
+      // members, leaving a blob that visibly stops growing well before it
+      // reaches MAX_CELL_DENSITY_FOR_STYLING.
+      sizePx: sqrtScale(
         cell.count,
         1,
         MAX_CELL_DENSITY_FOR_STYLING,
@@ -783,11 +796,16 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
       {/* The ruler: fixed screen positions, unaffected by worldContentRef's
           live-drag transform, so panning never drags these away - only the
           numbers they show change, on the next render. */}
+      {/* pointer-events-none throughout this ruler: purely decorative, and
+          without it a click landing on one of these (a grid line, the axis,
+          a tick's label) becomes that element's click instead of falling
+          through to world-content or an item dot beneath it - see the same
+          fix on ItemDot's label for the bug this caused. */}
       {columnsX.map((x) => (
         <div
           key={`grid-x-${x}`}
           data-testid="world-grid-line-x"
-          className="absolute top-0 w-px bg-neutral-200"
+          className="pointer-events-none absolute top-0 w-px bg-neutral-200"
           style={{ left: x, height: viewportHeight }}
         />
       ))}
@@ -796,16 +814,19 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
         <div
           key={`grid-y-${y}`}
           data-testid="world-grid-line-y"
-          className="absolute left-0 h-px bg-neutral-200"
+          className="pointer-events-none absolute left-0 h-px bg-neutral-200"
           style={{ top: y, width: viewportWidth }}
         />
       ))}
 
-      <div data-testid="world-axis" className="absolute inset-x-0 bottom-0 h-0.5 bg-black" />
+      <div
+        data-testid="world-axis"
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-0.5 bg-black"
+      />
 
       <div
         data-testid="world-fulcrum"
-        className="absolute bottom-0 h-0 w-0 border-x-[6px] border-b-[9px] border-x-transparent border-b-black"
+        className="pointer-events-none absolute bottom-0 h-0 w-0 border-x-[6px] border-b-[9px] border-x-transparent border-b-black"
         style={{ left: fulcrumScreenX, transform: "translate(-50%, 3px)" }}
       />
 
@@ -815,7 +836,7 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
           <div
             key={`tick-x-${x}`}
             data-testid="world-tick"
-            className="absolute bottom-0 flex -translate-x-1/2 flex-col items-center pb-1"
+            className="pointer-events-none absolute bottom-0 flex -translate-x-1/2 flex-col items-center pb-1"
             style={{ left: x }}
           >
             <span className="mb-1 font-bold text-neutral-700 text-xs">{value}</span>
@@ -831,7 +852,7 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
           <div
             key={`tick-y-${y}`}
             data-testid="world-tick-y"
-            className="absolute left-0 flex -translate-y-1/2 items-center gap-1"
+            className="pointer-events-none absolute left-0 flex -translate-y-1/2 items-center gap-1"
             style={{ top: y, left: 4 }}
           >
             <div className="h-px w-2 bg-neutral-400" />
@@ -890,6 +911,20 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
           />
         )}
       </div>
+
+      {isLoggedIn && (
+        <div
+          data-testid="drag-to-vote-hint"
+          // bottom, not top: TopBar (rendered as App.tsx's next sibling,
+          // outside this component) sits at the top with its own z-10, so a
+          // top-anchored hint here painted underneath it - invisible behind
+          // the search bar. The bottom is clear of everything except the
+          // x-axis ticks, comfortably cleared by this offset.
+          className="pointer-events-none absolute inset-x-0 bottom-10 text-center font-medium text-neutral-600 text-sm"
+        >
+          Drag an item to vote
+        </div>
+      )}
     </div>
   );
 }

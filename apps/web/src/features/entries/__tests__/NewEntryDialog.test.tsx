@@ -15,7 +15,7 @@ beforeEach(() => {
   });
   useFocusStore.setState({ focusedItemId: null });
   useEntriesStore.setState({ itemsByIdentifier: {} });
-  useVoteStore.setState({ votes: {}, settlingScores: {} });
+  useVoteStore.setState({ votes: {}, settlingScores: {}, settlingVoterCounts: {} });
   // animateTo is mocked for the same reason every other focus-triggering
   // test in this project mocks it: jsdom's requestAnimationFrame timestamps
   // never line up with performance.now(), so the real implementation would

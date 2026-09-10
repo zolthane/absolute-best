@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Item } from "../../../data/mockItems";
 import { useAuthStore } from "../../auth/authStore";
 import { useEntriesStore } from "../../entries/entriesStore";
-import { useLivingWorldStore } from "../../livingWorld/livingWorldStore";
+import { SIMULATION_INTERVAL_MS, useLivingWorldStore } from "../../livingWorld/livingWorldStore";
 import { useVoteStore } from "../../vote/voteStore";
 import { useCameraStore } from "../cameraStore";
 import { useFocusStore } from "../focusStore";
@@ -21,10 +21,15 @@ beforeEach(() => {
     viewportHeight: 800,
   });
   useAuthStore.setState({ username: null });
-  useVoteStore.setState({ votes: {}, settlingScores: {} });
+  useVoteStore.setState({ votes: {}, settlingScores: {}, settlingVoterCounts: {} });
   useFocusStore.setState({ focusedItemId: null });
   useEntriesStore.setState({ itemsByIdentifier: {} });
-  useLivingWorldStore.setState({ driftScores: {}, driftVoterCounts: {}, settlingDrift: {} });
+  useLivingWorldStore.setState({
+    driftScores: {},
+    driftVoterCounts: {},
+    settlingDrift: {},
+    settlingDriftVoterCounts: {},
+  });
 });
 
 describe("WorldViewport", () => {
@@ -33,6 +38,16 @@ describe("WorldViewport", () => {
     expect(screen.getByTestId("world-axis")).toBeInTheDocument();
     expect(screen.getByTestId("world-fulcrum")).toBeInTheDocument();
     expect(screen.getAllByTestId("world-tick").length).toBeGreaterThan(0);
+  });
+
+  it("shows a drag-to-vote hint once logged in, not before", () => {
+    render(<WorldViewport />);
+    expect(screen.queryByTestId("drag-to-vote-hint")).not.toBeInTheDocument();
+
+    act(() => {
+      useAuthStore.setState({ username: "Alice" });
+    });
+    expect(screen.getByTestId("drag-to-vote-hint")).toHaveTextContent("Drag an item to vote");
   });
 
   it("positions the fulcrum at the screen location of world position 0", () => {
@@ -794,6 +809,31 @@ describe("WorldViewport", () => {
       expect(useVoteStore.getState().hasVoted("a")).toBe(false);
     });
 
+    it("keeps decorative overlays (labels, grid lines, axis, ticks) click-through, so they never swallow a background click", () => {
+      // Reported bug: the card looked "stuck" open roughly 1 in 5 times a
+      // user clicked away from a focused item. Root cause: a click landing
+      // on a label's padded backdrop, a grid line, or a tick (all of which
+      // read as "empty space" to the user) became that element's own click
+      // target instead of world-content's, so handleBackgroundClick's
+      // target-is-currentTarget check silently failed. jsdom's fireEvent
+      // doesn't do real hit-testing, so it can't reproduce the click
+      // actually landing on one of these - this instead guards the CSS fix
+      // (pointer-events-none) that makes that impossible in a real browser.
+      render(<WorldViewport items={items} />);
+      for (const testId of [
+        "world-grid-line-x",
+        "world-grid-line-y",
+        "world-axis",
+        "world-fulcrum",
+        "world-tick",
+        "world-tick-y",
+      ]) {
+        for (const element of screen.getAllByTestId(testId)) {
+          expect(element).toHaveClass("pointer-events-none");
+        }
+      }
+    });
+
     it("does not un-focus when a pan drag happens to end over empty space", () => {
       useAuthStore.setState({ username: "Alice" });
       render(<WorldViewport items={items} />);
@@ -866,7 +906,7 @@ describe("WorldViewport", () => {
       const { unmount } = render(<WorldViewport items={items} />);
 
       act(() => {
-        vi.advanceTimersByTime(3500);
+        vi.advanceTimersByTime(SIMULATION_INTERVAL_MS);
       });
       expect(Object.keys(useLivingWorldStore.getState().driftVoterCounts)).toHaveLength(1);
 

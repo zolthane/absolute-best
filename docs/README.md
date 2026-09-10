@@ -16,6 +16,7 @@ directly on GitHub. **You cannot break anything by editing them.**
 | 03 | [Build checklist](03-build-checklist.md) | The ordered build steps for Stage 0, tickable as we go | ✅ Approved |
 | 04 | [Tagging and filters](04-tagging-and-filters.md) | Automatic tags from Wikidata, and which filters are free vs premium | ✅ Approved |
 | 05 | [Supporting features](05-supporting-features.md) | Feedback, moderation, legal pages, share previews — everything that is not the map | ✅ Approved |
+| 06 | [Naming brainstorm](06-naming-brainstorm.md) | Name and tagline ideas while we decide whether "Teeter" stays | Living document — never "approved", just grows |
 | 10 | [Local setup](10-local-setup.md) | How to get your machine ready | Available now — a how-to, not a plan to approve |
 | 11 | [Git workflow](11-git-workflow.md) | Branch rules: `main` / `dev` / `feature/xy` | Active |
 | 12 | [Testing guide](12-testing-guide.md) | The exact commands for testing in a browser and on your phone | Available now — a how-to, not a plan to approve |
