@@ -613,19 +613,66 @@ describe("WorldViewport", () => {
       }
     });
 
-    it("nests grid lines and tick marks inside world-content, so they track the live drag preview like items do", () => {
+    it("nests the X ruler's grid lines and ticks inside its own layer, and the Y ruler's inside its own", () => {
       render(<WorldViewport items={items} />);
-      const worldContent = screen.getByTestId("world-content");
-      for (const testId of [
-        "world-tick",
-        "world-tick-y",
-        "world-grid-line-x",
-        "world-grid-line-y",
+      const xRuler = screen.getByTestId("world-x-ruler");
+      const yRuler = screen.getByTestId("world-y-ruler");
+      for (const element of [
+        ...screen.getAllByTestId("world-tick"),
+        ...screen.getAllByTestId("world-grid-line-x"),
       ]) {
-        for (const element of screen.getAllByTestId(testId)) {
-          expect(worldContent).toContainElement(element);
-        }
+        expect(xRuler).toContainElement(element);
       }
+      for (const element of [
+        ...screen.getAllByTestId("world-tick-y"),
+        ...screen.getAllByTestId("world-grid-line-y"),
+      ]) {
+        expect(yRuler).toContainElement(element);
+      }
+    });
+
+    it("previews the X ruler's live drag horizontally only, even during a diagonal drag", () => {
+      // Reported: the numbers along the bottom stayed frozen in place for
+      // the whole gesture, only snapping to their new position on release -
+      // worse, once they did move live (a previous fix), a purely vertical
+      // drag also carried the score ruler away from the bottom edge, since
+      // it shared world-content's full 2D preview transform. A ruler is a
+      // fixed reference frame - the score ruler should track panning along
+      // its own axis live, but stay pinned to the bottom regardless of any
+      // vertical component to the drag.
+      render(<WorldViewport items={items} />);
+      const viewport = screen.getByTestId("world-viewport");
+
+      fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 500, clientY: 400 });
+      fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 460, clientY: 300 });
+
+      expect(screen.getByTestId("world-x-ruler")).toHaveStyle({
+        transform: "translateX(-40px)",
+      });
+    });
+
+    it("previews the Y ruler's live drag vertically only, even during a diagonal drag", () => {
+      render(<WorldViewport items={items} />);
+      const viewport = screen.getByTestId("world-viewport");
+
+      fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 500, clientY: 400 });
+      fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 300, clientY: 440 });
+
+      expect(screen.getByTestId("world-y-ruler")).toHaveStyle({
+        transform: "translateY(40px)",
+      });
+    });
+
+    it("clears both rulers' preview transforms once the gesture is committed", () => {
+      render(<WorldViewport items={items} />);
+      const viewport = screen.getByTestId("world-viewport");
+
+      fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 500, clientY: 400 });
+      fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 460, clientY: 300 });
+      fireEvent.pointerUp(viewport, { pointerId: 1, clientX: 460, clientY: 300 });
+
+      expect(screen.getByTestId("world-x-ruler")).toHaveStyle({ transform: "none" });
+      expect(screen.getByTestId("world-y-ruler")).toHaveStyle({ transform: "none" });
     });
 
     it("pins the axis baseline to the bottom edge of the viewport, not the world", () => {

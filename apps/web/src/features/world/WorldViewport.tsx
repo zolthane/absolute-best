@@ -207,6 +207,19 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const worldContentRef = useRef<HTMLDivElement>(null);
+  // The X-axis ruler (vertical grid lines + score ticks along the bottom)
+  // and the Y-axis ruler (horizontal grid lines + voter-count ticks along
+  // the left) each get their own live-drag preview transform, along only
+  // their own axis - not world-content's full 2D one. Each axis's numbers
+  // need to keep tracking their own value while dragging (so an item's
+  // position against them is readable mid-drag, not just after release),
+  // but a ruler is also a fixed reference frame: the score ruler reads
+  // "along the bottom of the screen" and should stay there regardless of
+  // how far you've panned vertically, not float away from the bottom edge
+  // during a vertical drag (and the voter-count ruler, symmetrically, stays
+  // at the left regardless of horizontal panning).
+  const xRulerRef = useRef<HTMLDivElement>(null);
+  const yRulerRef = useRef<HTMLDivElement>(null);
   const activePointers = useRef(new Map<number, Point>());
   const panGestureStart = useRef<Point | null>(null);
   const pinchStartDistance = useRef<number | null>(null);
@@ -374,6 +387,12 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
     if (worldContentRef.current) {
       worldContentRef.current.style.transform = "";
     }
+    if (xRulerRef.current) {
+      xRulerRef.current.style.transform = "";
+    }
+    if (yRulerRef.current) {
+      yRulerRef.current.style.transform = "";
+    }
   };
 
   // What panCamera/panCameraY would actually settle `currentCenter` to with
@@ -507,16 +526,21 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
       );
       const liveDeltaX = (camera.center - previewCenterX) * camera.zoom;
       const liveDeltaY = (previewCenterY - cameraY.centerY) * cameraY.zoomY;
-      // Only a CSS transform is touched here - no store update, no React
+      // Only CSS transforms are touched here - no store update, no React
       // re-render - so panning stays smooth regardless of how many pointer
       // events the browser fires per second (trackpads fire a lot of them).
-      // The ruler (grid lines and ticks) lives inside world-content now, at
-      // its own world position like an item - it picks up this same
-      // transform for free, already showing the right number the whole
-      // time (its text is tied to a fixed value, not a fixed position), so
-      // it needs no separate live-sync step here any more.
+      // Each axis's ruler tracks only its own component of the drag - see
+      // xRulerRef/yRulerRef's own comment for why - while world-content
+      // (items, the fulcrum, the reference lines) gets the full 2D pan,
+      // exactly the "live-drag preview" trick already used.
       if (worldContentRef.current) {
         worldContentRef.current.style.transform = `translate(${liveDeltaX}px, ${liveDeltaY}px)`;
+      }
+      if (xRulerRef.current) {
+        xRulerRef.current.style.transform = `translateX(${liveDeltaX}px)`;
+      }
+      if (yRulerRef.current) {
+        yRulerRef.current.style.transform = `translateY(${liveDeltaY}px)`;
       }
       return;
     }
@@ -648,8 +672,9 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   // The axis ruler: grid lines and tick marks, each at its OWN world
   // position - like an item, score 20 is wherever score 20 currently maps
   // to on screen, sliding and rescaling with pan/zoom exactly the way items
-  // do (rendered inside world-content, below, so the live drag-preview
-  // transform carries them along for free). An earlier version instead
+  // do (rendered in the dedicated xRulerRef/yRulerRef layers below, each of
+  // which only picks up its own axis's half of the live drag-preview
+  // transform - see that ref's own comment). An earlier version instead
   // pinned these to fixed screen positions (batch 6b), printing whatever
   // value happened to fall there - it kept the ruler itself motionless
   // during a pan, but made an item's position on screen impossible to read
@@ -936,38 +961,28 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
         className="pointer-events-none absolute inset-x-0 bottom-0 h-0.5 bg-black"
       />
 
-      {/* biome-ignore lint/a11y/noStaticElementInteractions: same as the outer viewport div - see its comment. */}
-      {/* biome-ignore lint/a11y/useKeyWithClickEvents: un-focusing by clicking empty space; S6 covers keyboard access. */}
+      {/* The X-axis ruler: vertical grid lines and score ticks, each at its
+          own world position (so an item's position against them stays
+          readable while dragging) - but in its own layer, transformed only
+          horizontally during a live drag (see xRulerRef's own comment), so
+          it stays pinned to the bottom of the screen regardless of any
+          vertical panning, the way a fixed axis reference should. */}
+      {/* pointer-events-none throughout both rulers: purely decorative, and
+          without it a click landing on one of these (a grid line, a tick's
+          label) becomes that element's click instead of falling through to
+          world-content or an item dot beneath it - see the same fix on
+          ItemDot's label for the bug this caused. */}
       <div
-        ref={worldContentRef}
-        data-testid="world-content"
-        className="absolute inset-0"
-        onClick={handleBackgroundClick}
+        ref={xRulerRef}
+        data-testid="world-x-ruler"
+        className="pointer-events-none absolute inset-0"
       >
-        {/* The axis ruler: grid lines and tick marks, each at its own world
-            position - see ticksX/ticksY's own comment for why this lives
-            inside world-content (picking up the live-drag preview
-            transform) rather than at a fixed screen position. */}
-        {/* pointer-events-none throughout: purely decorative, and without it
-            a click landing on one of these (a grid line, a tick's label)
-            becomes that element's click instead of falling through to
-            world-content or an item dot beneath it - see the same fix on
-            ItemDot's label for the bug this caused. */}
         {ticksX.map(({ x }) => (
           <div
             key={`grid-x-${x}`}
             data-testid="world-grid-line-x"
             className="pointer-events-none absolute top-0 w-px bg-neutral-200"
             style={{ left: x, height: viewportHeight }}
-          />
-        ))}
-
-        {ticksY.map(({ y }) => (
-          <div
-            key={`grid-y-${y}`}
-            data-testid="world-grid-line-y"
-            className="pointer-events-none absolute left-0 h-px bg-neutral-200"
-            style={{ top: y, width: viewportWidth }}
           />
         ))}
 
@@ -981,6 +996,24 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
             <span className="mb-1 font-bold text-neutral-700 text-xs">{value}</span>
             <div className="h-2 w-px bg-neutral-400" />
           </div>
+        ))}
+      </div>
+
+      {/* The Y-axis ruler - the same idea as the X one above, mirrored:
+          transformed only vertically during a live drag, staying pinned to
+          the left of the screen regardless of horizontal panning. */}
+      <div
+        ref={yRulerRef}
+        data-testid="world-y-ruler"
+        className="pointer-events-none absolute inset-0"
+      >
+        {ticksY.map(({ y }) => (
+          <div
+            key={`grid-y-${y}`}
+            data-testid="world-grid-line-y"
+            className="pointer-events-none absolute left-0 h-px bg-neutral-200"
+            style={{ top: y, width: viewportWidth }}
+          />
         ))}
 
         {ticksY.map(({ decade, y }) => (
@@ -996,7 +1029,16 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
             </span>
           </div>
         ))}
+      </div>
 
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: same as the outer viewport div - see its comment. */}
+      {/* biome-ignore lint/a11y/useKeyWithClickEvents: un-focusing by clicking empty space; S6 covers keyboard access. */}
+      <div
+        ref={worldContentRef}
+        data-testid="world-content"
+        className="absolute inset-0"
+        onClick={handleBackgroundClick}
+      >
         <div
           data-testid="world-fulcrum"
           className="pointer-events-none absolute bottom-0 h-0 w-0 border-x-[6px] border-b-[9px] border-x-transparent border-b-black"
