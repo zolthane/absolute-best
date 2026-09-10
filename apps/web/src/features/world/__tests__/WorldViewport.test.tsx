@@ -554,17 +554,42 @@ describe("WorldViewport", () => {
       expect(labelsAfter).not.toEqual(labelsBefore);
     });
 
+    it("keeps the tick at the screen's middle reading 0 through repeated zooming, unpanned", () => {
+      // Reported bug: zooming (without panning) made the zero point appear
+      // to slide right then snap back left, and the mirror zooming out -
+      // the grid used to count columns up from the screen's left edge in
+      // steps of the current spacing, so which column landed nearest to
+      // the true (unpanned) zero position - screen middle - drifted
+      // continuously as spacing changed and jumped whenever worldStepX
+      // ticked over to a new "nice" value. Zooming at the screen's middle
+      // (clientX 500, matching this fixture's 1000px viewport) keeps
+      // camera.center at 0 throughout - the tick anchored there must read
+      // exactly "0" at every step, never anything else.
+      render(<WorldViewport items={items} />);
+      const viewport = screen.getByTestId("world-viewport");
+
+      for (let i = 0; i < 8; i++) {
+        fireEvent.wheel(viewport, { deltaY: -100, clientX: 500, clientY: 400 });
+        const middleTick = screen
+          .getAllByTestId("world-tick")
+          .find((tick) => tick.style.left === "500px");
+        expect(middleTick).toHaveTextContent("0");
+      }
+    });
+
     it("keeps Y tick marks at the same screen position after a vertical pan, and relabels them instead", () => {
-      // Checked through one specific, safely-interior row (300px) rather
-      // than the whole list: dragging far enough to change any label here
-      // also happens to cross the "fewer than 1 voter" boundary for the
-      // row nearest the ground, which correctly drops that one row rather
-      // than relabelling it (its own, separate behaviour - see the test
-      // below) - asserting on the whole list would conflate the two.
+      // Checked through one specific, safely-interior row (340px - the
+      // ruler is anchored at the ground, screenY 640, so rows fall on
+      // multiples of 100px away from it: ..., 340, 440, 540, 640, ...)
+      // rather than the whole list: dragging far enough to change any label
+      // here also happens to cross the "fewer than 1 voter" boundary for
+      // the row nearest the ground, which correctly drops that one row
+      // rather than relabelling it (its own, separate behaviour - see the
+      // test below) - asserting on the whole list would conflate the two.
       render(<WorldViewport items={items} />);
       const rowBefore = screen
         .getAllByTestId("world-tick-y")
-        .find((tick) => tick.style.top === "300px");
+        .find((tick) => tick.style.top === "340px");
       const labelBefore = rowBefore?.textContent;
 
       const viewport = screen.getByTestId("world-viewport");
@@ -574,7 +599,7 @@ describe("WorldViewport", () => {
 
       const rowAfter = screen
         .getAllByTestId("world-tick-y")
-        .find((tick) => tick.style.top === "300px");
+        .find((tick) => tick.style.top === "340px");
       expect(rowAfter).toBeDefined();
       expect(rowAfter?.textContent).not.toBe(labelBefore);
     });
@@ -636,13 +661,14 @@ describe("WorldViewport", () => {
       fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 500, clientY: 400 });
       fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 500, clientY: 500 }); // +100px, down
 
-      // cameraY {centerY: 0, zoomY: 100}, axisTopPx 640 (beforeEach): the row
-      // fixed at screenY 300 currently reads world-Y (640-300)/100 = 3.4,
-      // decade 3 ("1,000"). Committing this +100px drag would move centerY
-      // to +1 (matching the "pans the vertical camera..." test above), so
-      // the same row would then read 1 + 3.4 = 4.4, decade 4 ("10,000") -
-      // that's what the live preview must already show, mid-drag.
-      const row = screen.getAllByTestId("world-tick-y").find((tick) => tick.style.top === "300px");
+      // cameraY {centerY: 0, zoomY: 100}, axisTopPx 640 (beforeEach): the
+      // ruler is anchored at the ground (screenY 640), so the row at
+      // screenY 340 currently reads world-Y (640-340)/100 = 3, decade 3
+      // ("1,000"). Committing this +100px drag would move centerY to +1
+      // (matching the "pans the vertical camera..." test above), so the
+      // same row would then read 1 + 3 = 4, decade 4 ("10,000") - that's
+      // what the live preview must already show, mid-drag.
+      const row = screen.getAllByTestId("world-tick-y").find((tick) => tick.style.top === "340px");
       expect(row?.textContent).toBe("10,000");
     });
 

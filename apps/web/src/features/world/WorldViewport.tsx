@@ -677,10 +677,31 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   // roughly every RULER_TICK_SPACING_TARGET_PX. worldStepX is rounded up to
   // a "nice" value so labels read as 20, 50, 100 rather than 19, 51, 103,
   // floored to 1 since a score is always a whole number (rule R2).
+  //
+  // Anchored at the screen's horizontal middle - viewportWidth / 2, NOT the
+  // live fulcrum position (worldToScreen(0, camera, viewportWidth), which
+  // moves as you pan) and not screen x=0 either (the left edge, what this
+  // used to anchor to). The middle is where score 0 actually sits whenever
+  // camera.center is 0 (the unpanned default) - anchoring there means a
+  // column lands exactly on it then, at any zoom, instead of wherever
+  // counting up from the edge in steps of the current spacing happened to
+  // land, which drifted continuously as zoom changed and jumped outright
+  // whenever worldStepX ticked over to its next "nice" value (reported as
+  // the zero point sliding right then snapping back left while zooming in,
+  // and the mirror of that zooming out). Deliberately NOT the live fulcrum:
+  // that would make the whole grid pan along with camera.center, which is
+  // exactly what pinning ticks to fixed screen positions (rather than their
+  // own world position, like items) was already meant to prevent - see
+  // "keeps X tick marks at the same screen position after panning" below.
   const worldStepX = Math.max(1, niceStep(RULER_TICK_SPACING_TARGET_PX / camera.zoom));
   const pixelSpacingX = worldStepX * camera.zoom;
   const columnsX: number[] = [];
-  for (let x = 0; x <= viewportWidth; x += pixelSpacingX) {
+  for (
+    let k = Math.ceil(-(viewportWidth / 2) / pixelSpacingX);
+    viewportWidth / 2 + k * pixelSpacingX <= viewportWidth;
+    k++
+  ) {
+    const x = viewportWidth / 2 + k * pixelSpacingX;
     // Skips a column too close to the left/right edge - its centred label
     // would otherwise be clipped in half by the viewport's own edge.
     if (x >= TICK_EDGE_MARGIN_PX && x <= viewportWidth - TICK_EDGE_MARGIN_PX) {
@@ -690,11 +711,19 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
 
   // Same idea for Y, but the step stays a whole number of decades (product
   // spec: "each step up means ten times as many voters") rather than an
-  // arbitrary nice number, so labels stay powers of ten.
+  // arbitrary nice number, so labels stay powers of ten. Anchored at
+  // axisTopPx - the fixed screen position world-Y 0 sits at whenever
+  // cameraY.centerY is 0 - for the same reason X is anchored at the
+  // screen's middle rather than its own live ground-line position.
   const decadeStepY = Math.max(1, niceStep(RULER_TICK_SPACING_TARGET_PX / cameraY.zoomY));
   const pixelSpacingY = decadeStepY * cameraY.zoomY;
   const rowsY: number[] = [];
-  for (let y = 0; y <= viewportHeight; y += pixelSpacingY) {
+  for (
+    let k = Math.ceil(-axisTopPx / pixelSpacingY);
+    axisTopPx + k * pixelSpacingY <= viewportHeight;
+    k++
+  ) {
+    const y = axisTopPx + k * pixelSpacingY;
     // Same edge guard as X, top and bottom - reported as the top-most voter
     // count label being cut in half against the top of the screen.
     if (y >= TICK_EDGE_MARGIN_PX && y <= viewportHeight - TICK_EDGE_MARGIN_PX) {
