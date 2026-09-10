@@ -555,20 +555,44 @@ describe("WorldViewport", () => {
     });
 
     it("keeps Y tick marks at the same screen position after a vertical pan, and relabels them instead", () => {
+      // Checked through one specific, safely-interior row (300px) rather
+      // than the whole list: dragging far enough to change any label here
+      // also happens to cross the "fewer than 1 voter" boundary for the
+      // row nearest the ground, which correctly drops that one row rather
+      // than relabelling it (its own, separate behaviour - see the test
+      // below) - asserting on the whole list would conflate the two.
       render(<WorldViewport items={items} />);
-      const positionsBefore = screen.getAllByTestId("world-tick-y").map((tick) => tick.style.top);
-      const labelsBefore = screen.getAllByTestId("world-tick-y").map((tick) => tick.textContent);
+      const rowBefore = screen
+        .getAllByTestId("world-tick-y")
+        .find((tick) => tick.style.top === "300px");
+      const labelBefore = rowBefore?.textContent;
 
       const viewport = screen.getByTestId("world-viewport");
       fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 500, clientY: 400 });
       fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 500, clientY: 250 });
       fireEvent.pointerUp(viewport, { pointerId: 1, clientX: 500, clientY: 250 });
 
-      const positionsAfter = screen.getAllByTestId("world-tick-y").map((tick) => tick.style.top);
-      const labelsAfter = screen.getAllByTestId("world-tick-y").map((tick) => tick.textContent);
+      const rowAfter = screen
+        .getAllByTestId("world-tick-y")
+        .find((tick) => tick.style.top === "300px");
+      expect(rowAfter).toBeDefined();
+      expect(rowAfter?.textContent).not.toBe(labelBefore);
+    });
 
-      expect(positionsAfter).toEqual(positionsBefore);
-      expect(labelsAfter).not.toEqual(labelsBefore);
+    it("hides sub-1-voter Y ticks (0.1, 0.01, ...) rather than labelling them, though panning past the ground is still allowed", () => {
+      render(<WorldViewport items={items} />);
+      const viewport = screen.getByTestId("world-viewport");
+
+      // Drags far enough past the ground that, before this, several rows
+      // would have read "0.1", "0.01", etc - meaningless, since there is no
+      // such thing as fewer than 1 voter.
+      fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 500, clientY: 400 });
+      fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 500, clientY: 250 });
+      fireEvent.pointerUp(viewport, { pointerId: 1, clientX: 500, clientY: 250 });
+
+      for (const label of screen.getAllByTestId("world-tick-y").map((tick) => tick.textContent)) {
+        expect(label).not.toMatch(/^0\./);
+      }
     });
 
     it("updates the X tick labels live, mid-drag, not just once the pan is committed", () => {
@@ -600,6 +624,28 @@ describe("WorldViewport", () => {
       expect(labelsDuring).not.toEqual(labelsBefore);
     });
 
+    it("previews the Y tick labels in the same direction the pan will actually commit to", () => {
+      // A live preview that merely changes (the test above) isn't enough to
+      // catch a wrong-direction bug: worldToScreenY's centerY term is added
+      // where worldToScreen's is subtracted (see its own comment), so the
+      // live-preview maths for Y needs its own sign, not X's reused as-is -
+      // still "changes" either way, just to the wrong values.
+      render(<WorldViewport items={items} />);
+      const viewport = screen.getByTestId("world-viewport");
+
+      fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 500, clientY: 400 });
+      fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 500, clientY: 500 }); // +100px, down
+
+      // cameraY {centerY: 0, zoomY: 100}, axisTopPx 640 (beforeEach): the row
+      // fixed at screenY 300 currently reads world-Y (640-300)/100 = 3.4,
+      // decade 3 ("1,000"). Committing this +100px drag would move centerY
+      // to +1 (matching the "pans the vertical camera..." test above), so
+      // the same row would then read 1 + 3.4 = 4.4, decade 4 ("10,000") -
+      // that's what the live preview must already show, mid-drag.
+      const row = screen.getAllByTestId("world-tick-y").find((tick) => tick.style.top === "300px");
+      expect(row?.textContent).toBe("10,000");
+    });
+
     it("pins the ground line and grid to the bottom/left edges of the viewport, not the world", () => {
       render(<WorldViewport items={items} />);
       expect(screen.getByTestId("world-axis")).toHaveClass("bottom-0");
@@ -623,17 +669,25 @@ describe("WorldViewport", () => {
       expect(zeroLine).toHaveAttribute("y2", "800");
     });
 
-    it("draws the two +-10-per-vote reference curves starting from the ground", () => {
+    it("draws the two +-10-per-vote reference curves starting from the origin, through the ground", () => {
       render(<WorldViewport items={items} />);
       const [positiveCurve, negativeCurve] = screen.getAllByTestId("world-vote-bound-line");
 
       // At 1 voter (world-Y 0) the ground sits at screenY 640 (axisTopPx,
       // 80% of the beforeEach's 800 viewportHeight; cameraY's centerY 0
-      // means no further offset). The most a single vote could ever add is
-      // +-10, so that's where each curve starts: screenX 540 (500 + 10*4)
-      // for +10, 460 (500 - 10*4) for -10, at the beforeEach's zoom of 4.
-      expect(positiveCurve?.getAttribute("points")?.split(" ")[0]).toBe("540,640");
-      expect(negativeCurve?.getAttribute("points")?.split(" ")[0]).toBe("460,640");
+      // means no further offset). Both curves are drawn starting from the
+      // origin (score 0, at the ground - same point the zero line meets it,
+      // screenX 500) - a deliberate fudge (an item can't really have +-10
+      // points at 0 voters) so they read as starting from zero. The most a
+      // single vote could ever add is +-10, so that's the very next point:
+      // screenX 540 (500 + 10*4) for +10, 460 (500 - 10*4) for -10, at the
+      // beforeEach's zoom of 4.
+      const positivePoints = positiveCurve?.getAttribute("points")?.split(" ") ?? [];
+      const negativePoints = negativeCurve?.getAttribute("points")?.split(" ") ?? [];
+      expect(positivePoints[0]).toBe("500,640");
+      expect(positivePoints[1]).toBe("540,640");
+      expect(negativePoints[0]).toBe("500,640");
+      expect(negativePoints[1]).toBe("460,640");
     });
 
     it("nests the fulcrum and reference lines inside world-content, so they track the live drag preview like items do", () => {

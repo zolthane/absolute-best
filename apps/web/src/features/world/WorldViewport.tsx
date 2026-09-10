@@ -109,10 +109,13 @@ const LABEL_HEIGHT_PX = 14;
 const MAX_VOTE_MAGNITUDE = 10;
 
 // How many segments the two +-10-votes-forever reference curves are drawn
-// with - enough to look smooth on the exponential-looking curve a constant
-// score-per-vote traces against the log-scaled Y axis, without computing an
-// excessive number of points every render.
-const VOTE_BOUND_SAMPLE_COUNT = 40;
+// with, across the visible world-Y range - enough to look smooth on the
+// exponential-looking curve a constant score-per-vote traces against the
+// log-scaled Y axis, without computing an excessive number of points every
+// render. Cheap to raise further: this is only ever spread across the
+// visible range now (see its usage), not the whole dataset regardless of
+// zoom, so it stays smooth at any zoom level rather than being diluted.
+const VOTE_BOUND_SAMPLE_COUNT = 80;
 
 // Screen pixels of drag per point of vote delta - deliberately independent
 // of camera.zoom (the map's own pan/zoom), which used to drive this: reached
@@ -388,14 +391,29 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   // to keep the ruler's printed numbers accurate during that same live
   // preview (see the tick-label refs below) instead of only updating once
   // the pan is committed to the store.
+  //
+  // `sign` matches whichever of panCamera (-1, `center - delta / zoom`) or
+  // panCameraY (+1, `centerY + delta / zoomY`) this is standing in for -
+  // the two disagree because worldToScreenY's center term is added where
+  // worldToScreen's is subtracted (screen Y grows downward while world Y
+  // should read "up" - see its own comment). Using the same sign for both
+  // axes previously left this an X-only helper masquerading as a shared
+  // one: a plain pixel-offset transform happened to come out correct for Y
+  // too by coincidence (the sign cancels out algebraically when nothing is
+  // clamped), which is what let it go unnoticed - but the *value* of
+  // `previewCenterY` itself was backwards the whole time, silently wrong
+  // for anything that reads it directly rather than just the offset (the
+  // live tick-label sync below, and the preview transform in the rarer case
+  // where the drag is actually clamped).
   const clampedPanCenter = (
     currentCenter: number,
     zoom: number,
     delta: number,
     minCenter: number,
     maxCenter: number,
+    sign: 1 | -1,
   ): number => {
-    const rawCenter = currentCenter - delta / zoom;
+    const rawCenter = currentCenter + sign * (delta / zoom);
     return Math.min(maxCenter, Math.max(minCenter, rawCenter));
   };
 
@@ -485,6 +503,7 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
         rawDeltaX,
         minCenterX,
         maxCenterX,
+        -1,
       );
       const previewCenterY = clampedPanCenter(
         cameraY.centerY,
@@ -492,9 +511,10 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
         rawDeltaY,
         minCenterY,
         maxCenterY,
+        1,
       );
       const liveDeltaX = (camera.center - previewCenterX) * camera.zoom;
-      const liveDeltaY = (cameraY.centerY - previewCenterY) * cameraY.zoomY;
+      const liveDeltaY = (previewCenterY - cameraY.centerY) * cameraY.zoomY;
       // Only a CSS transform is touched here - no store update, no React
       // re-render - so panning stays smooth regardless of how many pointer
       // events the browser fires per second (trackpads fire a lot of them).
@@ -520,7 +540,11 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
       for (const [y, label] of yTickLabelRefs.current) {
         const decade =
           decadeStepY * Math.round(screenToWorldY(y, previewCameraY, axisTopPx) / decadeStepY);
-        label.textContent = formatVoterTickLabel(decade);
+        // Same "fewer than 1 voter is meaningless" guard the render below
+        // applies - without it, dragging past the ground would flash
+        // "0.1"/"0.01" on an already-rendered row for the rest of the drag,
+        // even though it disappears correctly once the pointer lifts.
+        label.textContent = decade < 0 ? "" : formatVoterTickLabel(decade);
       }
       return;
     }
@@ -584,22 +608,34 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   // voterCount) - a visual reference for how extreme a score actually is,
   // since otherwise the map has no way to show that a modest-looking score
   // only came from a huge number of votes, or vice versa. Sampled uniformly
-  // in world-Y from the ground (1 voter, world-Y 0) up to past the visible
-  // top, with the same kind of buffer PAN_BUFFER_FACTOR gives items, so the
-  // curve doesn't visibly end mid-screen while zoomed in near the top.
+  // in world-Y across the visible range, plus the same kind of buffer past
+  // the top PAN_BUFFER_FACTOR gives items - NOT the whole dataset's range
+  // regardless of zoom, which is what it did at first: sampling all the way
+  // up to the highest-voted item meant that, zoomed in close, nearly all
+  // VOTE_BOUND_SAMPLE_COUNT points landed far outside the visible window,
+  // leaving too few of them in view for a continuous-looking line (reported
+  // as the curve, especially the -10 side, inconsistently disappearing at
+  // higher zoom levels).
   const visibleTopWorldY = screenToWorldY(0, cameraY, axisTopPx);
   const visibleBottomWorldY = screenToWorldY(viewportHeight, cameraY, axisTopPx);
   const worldYSpan = Math.max(0, visibleTopWorldY - visibleBottomWorldY);
-  const voteBoundTopWorldY = Math.max(visibleTopWorldY, maxWorldY) + worldYSpan * PAN_BUFFER_FACTOR;
-  const voteBoundPoints = (sign: 1 | -1): string =>
-    Array.from({ length: VOTE_BOUND_SAMPLE_COUNT + 1 }, (_, i) => {
+  const voteBoundTopWorldY = Math.max(visibleTopWorldY, 0) + worldYSpan * PAN_BUFFER_FACTOR;
+  const groundScreenY = worldToScreenY(0, cameraY, axisTopPx);
+  const voteBoundPoints = (sign: 1 | -1): string => {
+    const curve = Array.from({ length: VOTE_BOUND_SAMPLE_COUNT + 1 }, (_, i) => {
       const worldY = (voteBoundTopWorldY * i) / VOTE_BOUND_SAMPLE_COUNT;
       const voterCount = 10 ** worldY;
       const score = sign * MAX_VOTE_MAGNITUDE * voterCount;
       const x = worldToScreen(score, camera, viewportWidth);
       const y = worldToScreenY(worldY, cameraY, axisTopPx);
       return `${x},${y}`;
-    }).join(" ");
+    });
+    // Cheating slightly - an item can't actually have +-10 points at 0
+    // voters - so the curve reads as starting from the origin (where the
+    // zero line meets the ground) instead of visibly beginning already
+    // offset to one side, already at 1 voter.
+    return [`${fulcrumScreenX},${groundScreenY}`, ...curve].join(" ");
+  };
 
   // Fixed screen columns (batch 6b's ruler - see its comment above), one
   // roughly every RULER_TICK_SPACING_TARGET_PX. worldStepX is rounded up to
@@ -915,6 +951,12 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
       {rowsY.map((y) => {
         const decade =
           decadeStepY * Math.round(screenToWorldY(y, cameraY, axisTopPx) / decadeStepY);
+        // Fewer than 1 voter is meaningless - panning past the ground is
+        // still allowed, but the tick there is skipped rather than labelled
+        // "0.1" or "0.01".
+        if (decade < 0) {
+          return null;
+        }
         return (
           <div
             key={`tick-y-${y}`}
