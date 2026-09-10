@@ -853,6 +853,11 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
       {rowsY.map((y) => {
         const decade =
           decadeStepY * Math.round(screenToWorldY(y, cameraY, axisTopPx) / decadeStepY);
+        // Fewer than 1 voter is meaningless - skip the tick rather than
+        // label it "0.1" or "0.01".
+        if (decade < 0) {
+          return null;
+        }
         return (
           <div
             key={`tick-y-${y}`}

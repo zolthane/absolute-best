@@ -29,18 +29,17 @@ export function panBoundsX(
 }
 
 /**
- * The Y-axis equivalent - but asymmetric, unlike X. Decreasing centerY
- * reveals emptiness below the ground (world-Y 0, 1 voter) at the bottom of
- * the screen; increasing centerY reveals emptiness above the top (the
- * most-voted item) at the top of the screen - so each direction gets its
- * own, differently-shaped bound.
- *
- * The bottom is a real domain boundary - there is no such thing as fewer
- * than 1 voter - so it gets zero slack, not a fractional margin: ground can
- * be dragged down to the very bottom edge of the screen, never past it
- * (`minCenterY`). The top has no such boundary - a more-voted item could
- * always arrive later - so it gets the same soft MAX_EMPTY_SCREEN_FRACTION
- * margin X uses (`maxCenterY`).
+ * The Y-axis equivalent of panBoundsX. Decreasing centerY reveals emptiness
+ * below the ground (world-Y 0, 1 voter) at the bottom of the screen;
+ * increasing centerY reveals emptiness above the top (the most-voted item)
+ * at the top of the screen - so each direction gets its own, oppositely
+ * signed bound, both capped at the same MAX_EMPTY_SCREEN_FRACTION (an
+ * earlier version gave the ground zero slack instead, as a "real domain
+ * boundary" - dragging all the way there put the ground line exactly on the
+ * bottom edge pixel, clipping any item drawn right at it; the ground gets
+ * the same soft margin as everywhere else now, and the sub-1-voter space
+ * that opens up below it is handled by simply not labelling those ticks,
+ * not by forbidding the space).
  *
  * minZoomYForItems (verticalEntryView.ts) calibrates the floor zoom so that
  * minCenterY and maxCenterY coincide exactly there - below that zoom this
@@ -52,7 +51,7 @@ export function panBoundsY(
   anchorScreenY: number,
   zoomY: number,
 ): { minCenterY: number; maxCenterY: number } {
-  const minCenterY = (viewportHeight - anchorScreenY) / zoomY;
+  const minCenterY = ((1 - MAX_EMPTY_SCREEN_FRACTION) * viewportHeight - anchorScreenY) / zoomY;
   const maxCenterY =
     maxWorldY - (anchorScreenY - MAX_EMPTY_SCREEN_FRACTION * viewportHeight) / zoomY;
   return { minCenterY, maxCenterY };

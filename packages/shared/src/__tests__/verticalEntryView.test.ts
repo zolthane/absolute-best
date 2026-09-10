@@ -35,14 +35,14 @@ describe("minZoomYForItems", () => {
 
 describe("fitVerticalCameraToItems", () => {
   // 80% down, matching WorldViewport's AXIS_TOP_PERCENT - used throughout
-  // this describe block so the ground-at-bottom-edge check below has a real
-  // gap to prove it's closing.
+  // this describe block so the ground-margin check below has a real gap to
+  // prove it's landing in the right place.
   const anchorScreenY = 640;
 
-  it("pins the ground (1 voter) to the very bottom edge of the screen, not anchorScreenY's 80%-down position", () => {
+  it("pins the ground (1 voter) to its 25%-margin mark, not anchorScreenY's 80%-down position or the literal bottom edge", () => {
     const items: TestItem[] = [{ voterCount: 1 }, { voterCount: 1000 }];
     const camera = fitVerticalCameraToItems(items, 800, anchorScreenY);
-    expect(worldToScreenY(0, camera, anchorScreenY)).toBeCloseTo(800, 9);
+    expect(worldToScreenY(0, camera, anchorScreenY)).toBeCloseTo(800 * 0.75, 9);
   });
 
   it("zooms in exactly to the floor - no looser, since the floor already leaves the intended top margin", () => {

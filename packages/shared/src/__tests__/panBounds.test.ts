@@ -39,10 +39,10 @@ describe("panBoundsY", () => {
   const anchorScreenY = 640; // 80% down, matching WorldViewport's AXIS_TOP_PERCENT
   const zoomY = 100;
 
-  it("puts the ground (world-Y 0) exactly at the bottom edge when panned to minCenterY", () => {
+  it("puts the ground (world-Y 0) exactly at the 75% mark when panned to minCenterY", () => {
     const { minCenterY } = panBoundsY(3, viewportHeight, anchorScreenY, zoomY);
     const groundScreenY = worldToScreenY(0, { centerY: minCenterY, zoomY }, anchorScreenY);
-    expect(groundScreenY).toBeCloseTo(viewportHeight, 9);
+    expect(groundScreenY).toBeCloseTo(viewportHeight * 0.75, 9);
   });
 
   it("puts the top item exactly at the 25% mark when panned to maxCenterY", () => {

@@ -502,7 +502,7 @@ describe("WorldViewport", () => {
       // viewportHeight is 800 (set in beforeEach); minZoomYForItems([1000], 800)
       // is the floor - there is nothing beyond a 1000-voter item to show.
       const decades = Math.max(Math.log10(1000), 1);
-      const minZoomY = ((1 - MAX_EMPTY_SCREEN_FRACTION) * 800) / decades;
+      const minZoomY = ((1 - 2 * MAX_EMPTY_SCREEN_FRACTION) * 800) / decades;
       expect(useCameraStore.getState().cameraY.zoomY).toBeGreaterThanOrEqual(minZoomY);
     });
 
@@ -565,9 +565,10 @@ describe("WorldViewport", () => {
       fireEvent.pointerUp(viewport, { pointerId: 1, clientX: 500, clientY: 400 });
 
       // viewportHeight 800, zoomY 100, anchorScreenY 640 (80%):
-      // panBoundsY(1, 800, 640, 100).minCenterY is (800-640)/100 = 1.6 - the
-      // point where the ground (world-Y 0) sits exactly at the bottom edge.
-      expect(useCameraStore.getState().cameraY.centerY).toBeCloseTo(1.6, 9);
+      // panBoundsY(1, 800, 640, 100).minCenterY is (600-640)/100 = -0.4 - the
+      // point where the ground (world-Y 0) sits at exactly the 75% mark,
+      // leaving a 25% margin below it (same margin as the top).
+      expect(useCameraStore.getState().cameraY.centerY).toBeCloseTo(-0.4, 9);
     });
 
     it("hides the lower-priority label when two lone items' labels would collide", () => {
@@ -590,11 +591,13 @@ describe("WorldViewport", () => {
   });
 
   describe("axis ruler (batch 6b)", () => {
-    // A wide score range so the pan below stays far inside the pan-bound
-    // clamp - this test is about the ruler, not that boundary.
+    // A wide score range, and a high voter count, so the pans below stay far
+    // inside the pan-bound clamp on both axes - this describe block is about
+    // the ruler, not that boundary (a modest voter count makes panBoundsY
+    // degenerate at this fixture's zoomY, per panBounds.ts's own tests).
     const items: Item[] = [
-      { id: "a", title: "A", score: -1000, voterCount: 10, order: 0, tags: [] },
-      { id: "b", title: "B", score: 1000, voterCount: 10, order: 1, tags: [] },
+      { id: "a", title: "A", score: -1000, voterCount: 10_000_000, order: 0, tags: [] },
+      { id: "b", title: "B", score: 1000, voterCount: 10_000_000, order: 1, tags: [] },
     ];
 
     it("keeps X tick marks at the same screen position after panning, and relabels them instead", () => {
