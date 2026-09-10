@@ -537,34 +537,37 @@ describe("WorldViewport", () => {
       { id: "b", title: "B", score: 1000, voterCount: 10, order: 1, tags: [] },
     ];
 
-    it("keeps X tick marks at the same screen position after panning, and relabels them instead", () => {
+    it("moves X tick marks by exactly the dragged distance, keeping their world value", () => {
+      // The grid now lives at its own world position, like an item - not a
+      // fixed screen position that only relabels (batch 6b's old design,
+      // reverted): that design kept the ruler motionless during a pan, but
+      // made it impossible to read an item's position against "its" grid
+      // line while dragging (the grid never moved to match). "0" starts
+      // under the pointer's start position (the fulcrum, screen middle -
+      // 500px into this 1000px viewport) - dragging it to 100 must carry
+      // that same tick there too, the same 1:1 tracking items and the
+      // fulcrum already have.
       render(<WorldViewport items={items} />);
-      const positionsBefore = screen.getAllByTestId("world-tick").map((tick) => tick.style.left);
-      const labelsBefore = screen.getAllByTestId("world-tick").map((tick) => tick.textContent);
-
       const viewport = screen.getByTestId("world-viewport");
       fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 500 });
       fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 100 });
       fireEvent.pointerUp(viewport, { pointerId: 1, clientX: 100 });
 
-      const positionsAfter = screen.getAllByTestId("world-tick").map((tick) => tick.style.left);
-      const labelsAfter = screen.getAllByTestId("world-tick").map((tick) => tick.textContent);
-
-      expect(positionsAfter).toEqual(positionsBefore);
-      expect(labelsAfter).not.toEqual(labelsBefore);
+      const zeroTick = screen.getAllByTestId("world-tick").find((tick) => tick.textContent === "0");
+      expect(zeroTick).toHaveStyle({ left: "100px" });
     });
 
     it("keeps the tick at the screen's middle reading 0 through repeated zooming, unpanned", () => {
       // Reported bug: zooming (without panning) made the zero point appear
       // to slide right then snap back left, and the mirror zooming out -
-      // the grid used to count columns up from the screen's left edge in
-      // steps of the current spacing, so which column landed nearest to
-      // the true (unpanned) zero position - screen middle - drifted
-      // continuously as spacing changed and jumped whenever worldStepX
-      // ticked over to a new "nice" value. Zooming at the screen's middle
-      // (clientX 500, matching this fixture's 1000px viewport) keeps
-      // camera.center at 0 throughout - the tick anchored there must read
-      // exactly "0" at every step, never anything else.
+      // whichever tick landed nearest the true (unpanned) zero position -
+      // the screen's middle - drifted as spacing changed and jumped
+      // whenever worldStepX ticked over to a new "nice" value. Now that
+      // ticks sit at their own exact world value, 0 is always one of them
+      // (every "nice" step divides it evenly) and lands exactly on the
+      // middle whenever camera.center is 0, at any zoom - no drift or jump.
+      // Zooming at the screen's middle (clientX 500, matching this
+      // fixture's 1000px viewport) keeps camera.center at 0 throughout.
       render(<WorldViewport items={items} />);
       const viewport = screen.getByTestId("world-viewport");
 
@@ -577,31 +580,21 @@ describe("WorldViewport", () => {
       }
     });
 
-    it("keeps Y tick marks at the same screen position after a vertical pan, and relabels them instead", () => {
-      // Checked through one specific, safely-interior row (340px - the
-      // ruler is anchored at the ground, screenY 640, so rows fall on
-      // multiples of 100px away from it: ..., 340, 440, 540, 640, ...)
-      // rather than the whole list: dragging far enough to change any label
-      // here also happens to cross the "fewer than 1 voter" boundary for
-      // the row nearest the ground, which correctly drops that one row
-      // rather than relabelling it (its own, separate behaviour - see the
-      // test below) - asserting on the whole list would conflate the two.
+    it("moves Y tick marks by exactly the dragged distance, keeping their world value", () => {
+      // The ground ("1") starts at screenY 640 (axisTopPx, the beforeEach
+      // camera's ground position) - dragging down by 100px must carry that
+      // same tick to 740, the same 1:1 tracking items and the fulcrum
+      // already have.
       render(<WorldViewport items={items} />);
-      const rowBefore = screen
-        .getAllByTestId("world-tick-y")
-        .find((tick) => tick.style.top === "340px");
-      const labelBefore = rowBefore?.textContent;
-
       const viewport = screen.getByTestId("world-viewport");
       fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 500, clientY: 400 });
-      fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 500, clientY: 250 });
-      fireEvent.pointerUp(viewport, { pointerId: 1, clientX: 500, clientY: 250 });
+      fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 500, clientY: 500 });
+      fireEvent.pointerUp(viewport, { pointerId: 1, clientX: 500, clientY: 500 });
 
-      const rowAfter = screen
+      const groundTick = screen
         .getAllByTestId("world-tick-y")
-        .find((tick) => tick.style.top === "340px");
-      expect(rowAfter).toBeDefined();
-      expect(rowAfter?.textContent).not.toBe(labelBefore);
+        .find((tick) => tick.textContent === "1");
+      expect(groundTick).toHaveStyle({ top: "740px" });
     });
 
     it("hides sub-1-voter Y ticks (0.1, 0.01, ...) rather than labelling them, though panning past the ground is still allowed", () => {
@@ -620,59 +613,22 @@ describe("WorldViewport", () => {
       }
     });
 
-    it("updates the X tick labels live, mid-drag, not just once the pan is committed", () => {
-      // Reported bug: the printed numbers stayed frozen at their pre-drag
-      // values for the whole gesture (only the CSS preview transform moved
-      // the items), so nothing ever lined up until release, at which point
-      // everything jumped to the correct values at once.
+    it("nests grid lines and tick marks inside world-content, so they track the live drag preview like items do", () => {
       render(<WorldViewport items={items} />);
-      const labelsBefore = screen.getAllByTestId("world-tick").map((tick) => tick.textContent);
-
-      const viewport = screen.getByTestId("world-viewport");
-      fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 500 });
-      fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 100 });
-
-      // No pointerUp yet - still mid-gesture.
-      const labelsDuring = screen.getAllByTestId("world-tick").map((tick) => tick.textContent);
-      expect(labelsDuring).not.toEqual(labelsBefore);
+      const worldContent = screen.getByTestId("world-content");
+      for (const testId of [
+        "world-tick",
+        "world-tick-y",
+        "world-grid-line-x",
+        "world-grid-line-y",
+      ]) {
+        for (const element of screen.getAllByTestId(testId)) {
+          expect(worldContent).toContainElement(element);
+        }
+      }
     });
 
-    it("updates the Y tick labels live, mid-drag, not just once the pan is committed", () => {
-      render(<WorldViewport items={items} />);
-      const labelsBefore = screen.getAllByTestId("world-tick-y").map((tick) => tick.textContent);
-
-      const viewport = screen.getByTestId("world-viewport");
-      fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 500, clientY: 400 });
-      fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 500, clientY: 250 });
-
-      const labelsDuring = screen.getAllByTestId("world-tick-y").map((tick) => tick.textContent);
-      expect(labelsDuring).not.toEqual(labelsBefore);
-    });
-
-    it("previews the Y tick labels in the same direction the pan will actually commit to", () => {
-      // A live preview that merely changes (the test above) isn't enough to
-      // catch a wrong-direction bug: worldToScreenY's centerY term is added
-      // where worldToScreen's is subtracted (see its own comment), so the
-      // live-preview maths for Y needs its own sign, not X's reused as-is -
-      // still "changes" either way, just to the wrong values.
-      render(<WorldViewport items={items} />);
-      const viewport = screen.getByTestId("world-viewport");
-
-      fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 500, clientY: 400 });
-      fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 500, clientY: 500 }); // +100px, down
-
-      // cameraY {centerY: 0, zoomY: 100}, axisTopPx 640 (beforeEach): the
-      // ruler is anchored at the ground (screenY 640), so the row at
-      // screenY 340 currently reads world-Y (640-340)/100 = 3, decade 3
-      // ("1,000"). Committing this +100px drag would move centerY to +1
-      // (matching the "pans the vertical camera..." test above), so the
-      // same row would then read 1 + 3 = 4, decade 4 ("10,000") - that's
-      // what the live preview must already show, mid-drag.
-      const row = screen.getAllByTestId("world-tick-y").find((tick) => tick.style.top === "340px");
-      expect(row?.textContent).toBe("10,000");
-    });
-
-    it("pins the ground line and grid to the bottom/left edges of the viewport, not the world", () => {
+    it("pins the axis baseline to the bottom edge of the viewport, not the world", () => {
       render(<WorldViewport items={items} />);
       expect(screen.getByTestId("world-axis")).toHaveClass("bottom-0");
     });

@@ -52,12 +52,13 @@ function formatVoterTickLabel(decade: number): string {
 // this is purely the coordinate system items are placed in.
 const AXIS_TOP_PERCENT = 80;
 
-// Batch 6b: ticks sit at fixed screen positions - like a ruler laid over the
-// map - rather than at their own value's world position, so they no longer
-// visibly slide away as you pan; only the number printed at each one
-// changes, recomputed from whatever value now falls there. This is the
-// rough on-screen spacing aimed for between adjacent ticks; the actual
-// spacing is whatever a "nice" step (niceStep) comes closest to it.
+// The rough on-screen spacing aimed for between adjacent grid lines/ticks;
+// the actual spacing is whatever "nice" step (niceStep) comes closest to
+// it. Grid lines/ticks sit at their own world value's position (see
+// ticksX/ticksY's own comment) - a batch 6b version instead pinned them to
+// fixed screen positions, like a ruler laid over the map, which was
+// reverted (feedback: it made an item's position unreadable against the
+// grid, since the grid never visibly moved to match it).
 const RULER_TICK_SPACING_TARGET_PX = 96;
 
 // A tick this close to the top/bottom/left/right edge of the viewport is
@@ -65,11 +66,11 @@ const RULER_TICK_SPACING_TARGET_PX = 96;
 // in half by the viewport's own edge, as reported for the topmost Y tick.
 const TICK_EDGE_MARGIN_PX = 12;
 
-// Item dots are still rendered for a wider range than is actually visible -
-// roughly 2 extra screens each side - so that a live pan preview (see the
-// pointer handlers below) never drags a visible gap into view before the
-// gesture commits and a fresh set is computed. The ruler ticks/gridlines no
-// longer need this: they're fixed to the screen, not the world.
+// Item dots (and, since grid lines/ticks now live at their own world
+// position too, the ruler) are rendered for a wider range than is actually
+// visible - roughly 2 extra screens each side - so that a live pan preview
+// (see the pointer handlers below) never drags a visible gap into view
+// before the gesture commits and a fresh set is computed.
 const PAN_BUFFER_FACTOR = 2;
 
 // How far a single pointer must move before a gesture counts as a drag
@@ -225,15 +226,6 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   // zoom independently (batch 6b).
   const gridZoomRef = useRef(camera.zoom);
   const gridZoomYRef = useRef(cameraY.zoomY);
-  // Keyed by each tick's fixed screen position (the ruler design: ticks stay
-  // put on screen, only their printed number changes - see the ruler
-  // comment below). Populated by a ref callback on each label span, so an
-  // in-progress pan can update their text directly during handlePointerMove,
-  // the same no-store-write, no-re-render trick already used for the CSS
-  // preview transform - keeping the printed numbers in sync with the items
-  // sliding underneath them, rather than going stale until the drag commits.
-  const xTickLabelRefs = useRef(new Map<number, HTMLSpanElement>());
-  const yTickLabelRefs = useRef(new Map<number, HTMLSpanElement>());
 
   // The viewport is assumed to fill the browser window (see App.tsx), so
   // window dimensions double as viewport dimensions - this sidesteps
@@ -518,33 +510,13 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
       // Only a CSS transform is touched here - no store update, no React
       // re-render - so panning stays smooth regardless of how many pointer
       // events the browser fires per second (trackpads fire a lot of them).
+      // The ruler (grid lines and ticks) lives inside world-content now, at
+      // its own world position like an item - it picks up this same
+      // transform for free, already showing the right number the whole
+      // time (its text is tied to a fixed value, not a fixed position), so
+      // it needs no separate live-sync step here any more.
       if (worldContentRef.current) {
         worldContentRef.current.style.transform = `translate(${liveDeltaX}px, ${liveDeltaY}px)`;
-      }
-      // The ruler ticks stay put on screen by design (see the ruler comment
-      // below) - but the number each one prints must still track this same
-      // preview, or it goes stale (still showing the value from before the
-      // drag started) for the whole gesture, snapping to the truth only once
-      // the pointer lifts - reported as the printed numbers, especially
-      // along the bottom, never quite lining up with the items sliding past
-      // underneath them. Mutated directly rather than through React state
-      // for the same reason the transform above is: this runs on every
-      // pointermove.
-      const previewCameraX = { center: previewCenterX, zoom: camera.zoom };
-      for (const [x, label] of xTickLabelRefs.current) {
-        const value =
-          worldStepX * Math.round(screenToWorld(x, previewCameraX, viewportWidth) / worldStepX);
-        label.textContent = String(value);
-      }
-      const previewCameraY = { centerY: previewCenterY, zoomY: cameraY.zoomY };
-      for (const [y, label] of yTickLabelRefs.current) {
-        const decade =
-          decadeStepY * Math.round(screenToWorldY(y, previewCameraY, axisTopPx) / decadeStepY);
-        // Same "fewer than 1 voter is meaningless" guard the render below
-        // applies - without it, dragging past the ground would flash
-        // "0.1"/"0.01" on an already-rendered row for the rest of the drag,
-        // even though it disappears correctly once the pointer lifts.
-        label.textContent = decade < 0 ? "" : formatVoterTickLabel(decade);
       }
       return;
     }
@@ -673,61 +645,64 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
     }).join(" ");
   };
 
-  // Fixed screen columns (batch 6b's ruler - see its comment above), one
-  // roughly every RULER_TICK_SPACING_TARGET_PX. worldStepX is rounded up to
-  // a "nice" value so labels read as 20, 50, 100 rather than 19, 51, 103,
-  // floored to 1 since a score is always a whole number (rule R2).
+  // The axis ruler: grid lines and tick marks, each at its OWN world
+  // position - like an item, score 20 is wherever score 20 currently maps
+  // to on screen, sliding and rescaling with pan/zoom exactly the way items
+  // do (rendered inside world-content, below, so the live drag-preview
+  // transform carries them along for free). An earlier version instead
+  // pinned these to fixed screen positions (batch 6b), printing whatever
+  // value happened to fall there - it kept the ruler itself motionless
+  // during a pan, but made an item's position on screen impossible to read
+  // against the grid (an item didn't visibly move relative to "its" grid
+  // line while dragging - the grid was frozen, only its printed numbers
+  // changed) and, separately, made the zero point drift and jump as zoom
+  // changed the fixed spacing's phase relative to it. Both problems are
+  // gone once the grid is positioned the same way items are: 0 is always
+  // wherever score 0 actually is, and an item's position against nearby
+  // grid lines is continuously, honestly readable.
   //
-  // Anchored at the screen's horizontal middle - viewportWidth / 2, NOT the
-  // live fulcrum position (worldToScreen(0, camera, viewportWidth), which
-  // moves as you pan) and not screen x=0 either (the left edge, what this
-  // used to anchor to). The middle is where score 0 actually sits whenever
-  // camera.center is 0 (the unpanned default) - anchoring there means a
-  // column lands exactly on it then, at any zoom, instead of wherever
-  // counting up from the edge in steps of the current spacing happened to
-  // land, which drifted continuously as zoom changed and jumped outright
-  // whenever worldStepX ticked over to its next "nice" value (reported as
-  // the zero point sliding right then snapping back left while zooming in,
-  // and the mirror of that zooming out). Deliberately NOT the live fulcrum:
-  // that would make the whole grid pan along with camera.center, which is
-  // exactly what pinning ticks to fixed screen positions (rather than their
-  // own world position, like items) was already meant to prevent - see
-  // "keeps X tick marks at the same screen position after panning" below.
+  // worldStepX is rounded up to a "nice" value so labels read as 20, 50,
+  // 100 rather than 19, 51, 103, floored to 1 since a score is always a
+  // whole number (rule R2). The visible range is padded by the same
+  // PAN_BUFFER_FACTOR buffer items get, so a live drag preview never
+  // reveals a gap at the leading edge before the next render supplies more
+  // ticks.
   const worldStepX = Math.max(1, niceStep(RULER_TICK_SPACING_TARGET_PX / camera.zoom));
-  const pixelSpacingX = worldStepX * camera.zoom;
-  const columnsX: number[] = [];
-  for (
-    let k = Math.ceil(-(viewportWidth / 2) / pixelSpacingX);
-    viewportWidth / 2 + k * pixelSpacingX <= viewportWidth;
-    k++
-  ) {
-    const x = viewportWidth / 2 + k * pixelSpacingX;
+  const firstTickX = Math.ceil((visibleMinWorld - bufferWorldWidth) / worldStepX) * worldStepX;
+  const tickCountX = Math.floor((visibleMaxWorld + bufferWorldWidth - firstTickX) / worldStepX) + 1;
+  const ticksX: { value: number; x: number }[] = [];
+  for (let i = 0; i < tickCountX; i++) {
+    const value = firstTickX + i * worldStepX;
+    const x = worldToScreen(value, camera, viewportWidth);
     // Skips a column too close to the left/right edge - its centred label
     // would otherwise be clipped in half by the viewport's own edge.
     if (x >= TICK_EDGE_MARGIN_PX && x <= viewportWidth - TICK_EDGE_MARGIN_PX) {
-      columnsX.push(x);
+      ticksX.push({ value, x });
     }
   }
 
   // Same idea for Y, but the step stays a whole number of decades (product
   // spec: "each step up means ten times as many voters") rather than an
-  // arbitrary nice number, so labels stay powers of ten. Anchored at
-  // axisTopPx - the fixed screen position world-Y 0 sits at whenever
-  // cameraY.centerY is 0 - for the same reason X is anchored at the
-  // screen's middle rather than its own live ground-line position.
+  // arbitrary nice number, so labels stay powers of ten - and never below
+  // 0, since fewer than 1 voter is meaningless (that tick is skipped rather
+  // than labelled "0.1" or "0.01"; panning past the ground is still
+  // allowed).
   const decadeStepY = Math.max(1, niceStep(RULER_TICK_SPACING_TARGET_PX / cameraY.zoomY));
-  const pixelSpacingY = decadeStepY * cameraY.zoomY;
-  const rowsY: number[] = [];
-  for (
-    let k = Math.ceil(-axisTopPx / pixelSpacingY);
-    axisTopPx + k * pixelSpacingY <= viewportHeight;
-    k++
-  ) {
-    const y = axisTopPx + k * pixelSpacingY;
+  const bufferWorldHeight = worldYSpan * PAN_BUFFER_FACTOR;
+  const firstTickY = Math.max(
+    0,
+    Math.ceil((visibleBottomWorldY - bufferWorldHeight) / decadeStepY) * decadeStepY,
+  );
+  const tickCountY =
+    Math.floor((visibleTopWorldY + bufferWorldHeight - firstTickY) / decadeStepY) + 1;
+  const ticksY: { decade: number; y: number }[] = [];
+  for (let i = 0; i < tickCountY; i++) {
+    const decade = firstTickY + i * decadeStepY;
+    const y = worldToScreenY(decade, cameraY, axisTopPx);
     // Same edge guard as X, top and bottom - reported as the top-most voter
     // count label being cut in half against the top of the screen.
     if (y >= TICK_EDGE_MARGIN_PX && y <= viewportHeight - TICK_EDGE_MARGIN_PX) {
-      rowsY.push(y);
+      ticksY.push({ decade, y });
     }
   }
 
@@ -956,95 +931,10 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
       onPointerCancel={handlePointerUp}
       onDragStart={(event) => event.preventDefault()}
     >
-      {/* The ruler: fixed screen positions, unaffected by worldContentRef's
-          live-drag transform, so panning never drags these away - only the
-          numbers they show change, on the next render. */}
-      {/* pointer-events-none throughout this ruler: purely decorative, and
-          without it a click landing on one of these (a grid line, the axis,
-          a tick's label) becomes that element's click instead of falling
-          through to world-content or an item dot beneath it - see the same
-          fix on ItemDot's label for the bug this caused. */}
-      {columnsX.map((x) => (
-        <div
-          key={`grid-x-${x}`}
-          data-testid="world-grid-line-x"
-          className="pointer-events-none absolute top-0 w-px bg-neutral-200"
-          style={{ left: x, height: viewportHeight }}
-        />
-      ))}
-
-      {rowsY.map((y) => (
-        <div
-          key={`grid-y-${y}`}
-          data-testid="world-grid-line-y"
-          className="pointer-events-none absolute left-0 h-px bg-neutral-200"
-          style={{ top: y, width: viewportWidth }}
-        />
-      ))}
-
       <div
         data-testid="world-axis"
         className="pointer-events-none absolute inset-x-0 bottom-0 h-0.5 bg-black"
       />
-
-      {columnsX.map((x) => {
-        const value = worldStepX * Math.round(screenToWorld(x, camera, viewportWidth) / worldStepX);
-        return (
-          <div
-            key={`tick-x-${x}`}
-            data-testid="world-tick"
-            className="pointer-events-none absolute bottom-0 flex -translate-x-1/2 flex-col items-center pb-1"
-            style={{ left: x }}
-          >
-            <span
-              ref={(el) => {
-                if (el) {
-                  xTickLabelRefs.current.set(x, el);
-                } else {
-                  xTickLabelRefs.current.delete(x);
-                }
-              }}
-              className="mb-1 font-bold text-neutral-700 text-xs"
-            >
-              {value}
-            </span>
-            <div className="h-2 w-px bg-neutral-400" />
-          </div>
-        );
-      })}
-
-      {rowsY.map((y) => {
-        const decade =
-          decadeStepY * Math.round(screenToWorldY(y, cameraY, axisTopPx) / decadeStepY);
-        // Fewer than 1 voter is meaningless - panning past the ground is
-        // still allowed, but the tick there is skipped rather than labelled
-        // "0.1" or "0.01".
-        if (decade < 0) {
-          return null;
-        }
-        return (
-          <div
-            key={`tick-y-${y}`}
-            data-testid="world-tick-y"
-            className="pointer-events-none absolute left-0 flex -translate-y-1/2 items-center gap-1"
-            style={{ top: y, left: 4 }}
-          >
-            <div className="h-px w-2 bg-neutral-400" />
-            <span
-              ref={(el) => {
-                if (el) {
-                  yTickLabelRefs.current.set(y, el);
-                } else {
-                  yTickLabelRefs.current.delete(y);
-                }
-              }}
-              className="font-bold text-neutral-700 text-xs"
-            >
-              {formatVoterTickLabel(decade)}
-            </span>
-          </div>
-        );
-      })}
 
       {/* biome-ignore lint/a11y/noStaticElementInteractions: same as the outer viewport div - see its comment. */}
       {/* biome-ignore lint/a11y/useKeyWithClickEvents: un-focusing by clicking empty space; S6 covers keyboard access. */}
@@ -1054,12 +944,59 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
         className="absolute inset-0"
         onClick={handleBackgroundClick}
       >
-        {/* Moved inside world-content (rather than sitting alongside the
-            fixed ruler above) so it slides with the same live-drag preview
-            transform as the items it marks a position among - it represents
-            a world position, not a ruler tick, and previously stayed frozen
-            for the whole gesture instead of tracking the drag like the item
-            dots underneath it. */}
+        {/* The axis ruler: grid lines and tick marks, each at its own world
+            position - see ticksX/ticksY's own comment for why this lives
+            inside world-content (picking up the live-drag preview
+            transform) rather than at a fixed screen position. */}
+        {/* pointer-events-none throughout: purely decorative, and without it
+            a click landing on one of these (a grid line, a tick's label)
+            becomes that element's click instead of falling through to
+            world-content or an item dot beneath it - see the same fix on
+            ItemDot's label for the bug this caused. */}
+        {ticksX.map(({ x }) => (
+          <div
+            key={`grid-x-${x}`}
+            data-testid="world-grid-line-x"
+            className="pointer-events-none absolute top-0 w-px bg-neutral-200"
+            style={{ left: x, height: viewportHeight }}
+          />
+        ))}
+
+        {ticksY.map(({ y }) => (
+          <div
+            key={`grid-y-${y}`}
+            data-testid="world-grid-line-y"
+            className="pointer-events-none absolute left-0 h-px bg-neutral-200"
+            style={{ top: y, width: viewportWidth }}
+          />
+        ))}
+
+        {ticksX.map(({ value, x }) => (
+          <div
+            key={`tick-x-${x}`}
+            data-testid="world-tick"
+            className="pointer-events-none absolute bottom-0 flex -translate-x-1/2 flex-col items-center pb-1"
+            style={{ left: x }}
+          >
+            <span className="mb-1 font-bold text-neutral-700 text-xs">{value}</span>
+            <div className="h-2 w-px bg-neutral-400" />
+          </div>
+        ))}
+
+        {ticksY.map(({ decade, y }) => (
+          <div
+            key={`tick-y-${y}`}
+            data-testid="world-tick-y"
+            className="pointer-events-none absolute left-0 flex -translate-y-1/2 items-center gap-1"
+            style={{ top: y, left: 4 }}
+          >
+            <div className="h-px w-2 bg-neutral-400" />
+            <span className="font-bold text-neutral-700 text-xs">
+              {formatVoterTickLabel(decade)}
+            </span>
+          </div>
+        ))}
+
         <div
           data-testid="world-fulcrum"
           className="pointer-events-none absolute bottom-0 h-0 w-0 border-x-[6px] border-b-[9px] border-x-transparent border-b-black"
