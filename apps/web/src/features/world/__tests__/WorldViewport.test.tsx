@@ -669,25 +669,74 @@ describe("WorldViewport", () => {
       expect(zeroLine).toHaveAttribute("y2", "800");
     });
 
-    it("draws the two +-10-per-vote reference curves starting from the origin, through the ground", () => {
+    const parseCurvePoints = (el: Element | undefined): [number, number][] =>
+      (el?.getAttribute("points") ?? "")
+        .split(" ")
+        .map((pair) => pair.split(",").map(Number) as [number, number]);
+
+    it("curves down towards the origin as it approaches the ground, rather than a straight line to it", () => {
       render(<WorldViewport items={items} />);
       const [positiveCurve, negativeCurve] = screen.getAllByTestId("world-vote-bound-line");
+      const positivePoints = parseCurvePoints(positiveCurve);
+      const negativePoints = parseCurvePoints(negativeCurve);
 
-      // At 1 voter (world-Y 0) the ground sits at screenY 640 (axisTopPx,
-      // 80% of the beforeEach's 800 viewportHeight; cameraY's centerY 0
-      // means no further offset). Both curves are drawn starting from the
-      // origin (score 0, at the ground - same point the zero line meets it,
-      // screenX 500) - a deliberate fudge (an item can't really have +-10
-      // points at 0 voters) so they read as starting from zero. The most a
-      // single vote could ever add is +-10, so that's the very next point:
-      // screenX 540 (500 + 10*4) for +10, 460 (500 - 10*4) for -10, at the
-      // beforeEach's zoom of 4.
-      const positivePoints = positiveCurve?.getAttribute("points")?.split(" ") ?? [];
-      const negativePoints = negativeCurve?.getAttribute("points")?.split(" ") ?? [];
-      expect(positivePoints[0]).toBe("500,640");
-      expect(positivePoints[1]).toBe("540,640");
-      expect(negativePoints[0]).toBe("500,640");
-      expect(negativePoints[1]).toBe("460,640");
+      // Both curves' very first sample (their lowest world-Y, deep below
+      // the ground) sits within a pixel of the fulcrum (screenX 500) -
+      // close enough to read as originating from zero, without it actually
+      // being a straight line there: every following point keeps moving
+      // farther out in the same direction (or holds, where a run of the
+      // very earliest points differ by less than float precision can
+      // represent) - a continuously curving approach, never a jump back.
+      expect(positivePoints[0]?.[0]).toBeCloseTo(500, 0);
+      expect(negativePoints[0]?.[0]).toBeCloseTo(500, 0);
+
+      const isMonotonicallyAwayFromCenter = (points: [number, number][], direction: 1 | -1) =>
+        points.every((point, i) => {
+          const previous = points[i - 1];
+          return i === 0 || !previous || direction * (point[0] - previous[0]) >= 0;
+        });
+      expect(isMonotonicallyAwayFromCenter(positivePoints, 1)).toBe(true);
+      expect(isMonotonicallyAwayFromCenter(negativePoints, -1)).toBe(true);
+    });
+
+    it("keeps consecutive points on the +10 curve close enough together to stay visible even at a high X zoom", () => {
+      // Reported bug: a fixed world-Y sampling step gave plenty of
+      // resolution near the ground but far too little once zoomed in on a
+      // narrow score window further out along the (exponential) curve - a
+      // gap between two samples wider than the whole visible window reads
+      // as "no curve here".
+      useCameraStore.setState({
+        camera: { center: 300, zoom: 500 },
+        cameraY: { centerY: 0, zoomY: 100 },
+        viewportWidth: 1000,
+        viewportHeight: 800,
+      });
+      render(<WorldViewport items={items} />);
+      const [positiveCurve] = screen.getAllByTestId("world-vote-bound-line");
+      const points = parseCurvePoints(positiveCurve);
+      const gaps = points
+        .slice(1)
+        .map((point, i) => Math.abs(point[0] - (points[i]?.[0] ?? point[0])));
+      // Only a 1000/500 = 2-unit-wide score window is actually visible at
+      // this zoom - any gap under the full viewport width can't produce a
+      // visible break in the line.
+      expect(Math.max(...gaps)).toBeLessThan(1000);
+    });
+
+    it("keeps consecutive points on the -10 curve close enough together to stay visible even at a high X zoom", () => {
+      useCameraStore.setState({
+        camera: { center: -300, zoom: 500 },
+        cameraY: { centerY: 0, zoomY: 100 },
+        viewportWidth: 1000,
+        viewportHeight: 800,
+      });
+      render(<WorldViewport items={items} />);
+      const [, negativeCurve] = screen.getAllByTestId("world-vote-bound-line");
+      const points = parseCurvePoints(negativeCurve);
+      const gaps = points
+        .slice(1)
+        .map((point, i) => Math.abs(point[0] - (points[i]?.[0] ?? point[0])));
+      expect(Math.max(...gaps)).toBeLessThan(1000);
     });
 
     it("nests the fulcrum and reference lines inside world-content, so they track the live drag preview like items do", () => {

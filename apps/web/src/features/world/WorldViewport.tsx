@@ -607,34 +607,70 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   // -10 votes for its entire life (score = +-MAX_VOTE_MAGNITUDE *
   // voterCount) - a visual reference for how extreme a score actually is,
   // since otherwise the map has no way to show that a modest-looking score
-  // only came from a huge number of votes, or vice versa. Sampled uniformly
-  // in world-Y across the visible range, plus the same kind of buffer past
-  // the top PAN_BUFFER_FACTOR gives items - NOT the whole dataset's range
-  // regardless of zoom, which is what it did at first: sampling all the way
-  // up to the highest-voted item meant that, zoomed in close, nearly all
-  // VOTE_BOUND_SAMPLE_COUNT points landed far outside the visible window,
-  // leaving too few of them in view for a continuous-looking line (reported
-  // as the curve, especially the -10 side, inconsistently disappearing at
-  // higher zoom levels).
+  // only came from a huge number of votes, or vice versa. Curves down
+  // towards the origin (0 voters, 0 score) rather than stopping at 1 voter
+  // and faking a straight line the rest of the way - it never actually
+  // reaches 0 (voterCount 0 is world-Y -Infinity on this log-scaled axis),
+  // but a few decades below the ground already looks indistinguishable
+  // from it, and it keeps curving there rather than kinking into a straight
+  // segment.
+  //
+  // Each curve is sampled across whichever world-Y range is actually
+  // relevant to what's on screen right now - on BOTH axes, not a fixed
+  // world-Y span applied blindly. Score is exponential in world-Y, so a
+  // fixed sampling step gives plenty of resolution near the ground but far
+  // too little once zoomed in on a narrow score window further out along
+  // the curve: a gap between two samples wider than the entire visible
+  // window reads as "no curve here" even though the maths never stopped
+  // being continuous (reported as the curve, especially the -10 side -
+  // whichever one the view happened to be near - inconsistently
+  // disappearing at higher zoom levels, and not coming back even when
+  // zooming/panning back, since the very next sample was often just as far
+  // away again).
   const visibleTopWorldY = screenToWorldY(0, cameraY, axisTopPx);
   const visibleBottomWorldY = screenToWorldY(viewportHeight, cameraY, axisTopPx);
   const worldYSpan = Math.max(0, visibleTopWorldY - visibleBottomWorldY);
-  const voteBoundTopWorldY = Math.max(visibleTopWorldY, 0) + worldYSpan * PAN_BUFFER_FACTOR;
-  const groundScreenY = worldToScreenY(0, cameraY, axisTopPx);
+  const yBasedTopWorldY = Math.max(visibleTopWorldY, 0) + worldYSpan * PAN_BUFFER_FACTOR;
+  const yBasedBottomWorldY = Math.min(visibleBottomWorldY, 0) - worldYSpan * PAN_BUFFER_FACTOR;
   const voteBoundPoints = (sign: 1 | -1): string => {
-    const curve = Array.from({ length: VOTE_BOUND_SAMPLE_COUNT + 1 }, (_, i) => {
-      const worldY = (voteBoundTopWorldY * i) / VOTE_BOUND_SAMPLE_COUNT;
+    // The world-Y range whose score (for this curve's sign) actually falls
+    // within the visible score window, plus the same buffer items get -
+    // where this curve's resolution needs to be spent at the current X
+    // zoom. Only meaningful where that score range is actually positive
+    // (there's no world-Y for a zero-or-negative score on this curve); when
+    // it isn't, this side of the curve isn't in the visible score window at
+    // all, so the plain Y-based range is used instead - coarse resolution
+    // doesn't matter for a curve that's off-screen in X either way.
+    const loScore = Math.max(
+      0,
+      sign > 0 ? visibleMinWorld - bufferWorldWidth : -(visibleMaxWorld + bufferWorldWidth),
+    );
+    const hiScore = Math.max(
+      0,
+      sign > 0 ? visibleMaxWorld + bufferWorldWidth : -(visibleMinWorld - bufferWorldWidth),
+    );
+    const xBasedBottomWorldY = loScore > 0 ? Math.log10(loScore / MAX_VOTE_MAGNITUDE) : null;
+    const xBasedTopWorldY = hiScore > 0 ? Math.log10(hiScore / MAX_VOTE_MAGNITUDE) : null;
+    const rangeBottom =
+      xBasedBottomWorldY === null
+        ? yBasedBottomWorldY
+        : Math.max(yBasedBottomWorldY, xBasedBottomWorldY);
+    const rangeTop =
+      xBasedTopWorldY === null ? yBasedTopWorldY : Math.min(yBasedTopWorldY, xBasedTopWorldY);
+    // The two ranges don't overlap - this sign's curve isn't in the visible
+    // score window at all right now - so fall back to the plain Y-based
+    // range, same reasoning as above.
+    const [bottom, top] =
+      rangeBottom <= rangeTop ? [rangeBottom, rangeTop] : [yBasedBottomWorldY, yBasedTopWorldY];
+    const span = top - bottom;
+    return Array.from({ length: VOTE_BOUND_SAMPLE_COUNT + 1 }, (_, i) => {
+      const worldY = bottom + (span * i) / VOTE_BOUND_SAMPLE_COUNT;
       const voterCount = 10 ** worldY;
       const score = sign * MAX_VOTE_MAGNITUDE * voterCount;
       const x = worldToScreen(score, camera, viewportWidth);
       const y = worldToScreenY(worldY, cameraY, axisTopPx);
       return `${x},${y}`;
-    });
-    // Cheating slightly - an item can't actually have +-10 points at 0
-    // voters - so the curve reads as starting from the origin (where the
-    // zero line meets the ground) instead of visibly beginning already
-    // offset to one side, already at 1 voter.
-    return [`${fulcrumScreenX},${groundScreenY}`, ...curve].join(" ");
+    }).join(" ");
   };
 
   // Fixed screen columns (batch 6b's ruler - see its comment above), one
