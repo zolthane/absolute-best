@@ -915,7 +915,12 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
       {isLoggedIn && (
         <div
           data-testid="drag-to-vote-hint"
-          className="pointer-events-none absolute inset-x-0 top-2 text-center text-neutral-400 text-xs"
+          // bottom, not top: TopBar (rendered as App.tsx's next sibling,
+          // outside this component) sits at the top with its own z-10, so a
+          // top-anchored hint here painted underneath it - invisible behind
+          // the search bar. The bottom is clear of everything except the
+          // x-axis ticks, comfortably cleared by this offset.
+          className="pointer-events-none absolute inset-x-0 bottom-10 text-center font-medium text-neutral-600 text-sm"
         >
           Drag an item to vote
         </div>
