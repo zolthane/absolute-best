@@ -40,6 +40,16 @@ describe("WorldViewport", () => {
     expect(screen.getAllByTestId("world-tick").length).toBeGreaterThan(0);
   });
 
+  it("shows a drag-to-vote hint once logged in, not before", () => {
+    render(<WorldViewport />);
+    expect(screen.queryByTestId("drag-to-vote-hint")).not.toBeInTheDocument();
+
+    act(() => {
+      useAuthStore.setState({ username: "Alice" });
+    });
+    expect(screen.getByTestId("drag-to-vote-hint")).toHaveTextContent("Drag an item to vote");
+  });
+
   it("positions the fulcrum at the screen location of world position 0", () => {
     render(<WorldViewport />);
     // camera is centred on 0, so world 0 sits at the horizontal centre.
@@ -797,6 +807,31 @@ describe("WorldViewport", () => {
 
       expect(screen.queryByTestId("item-card")).not.toBeInTheDocument();
       expect(useVoteStore.getState().hasVoted("a")).toBe(false);
+    });
+
+    it("keeps decorative overlays (labels, grid lines, axis, ticks) click-through, so they never swallow a background click", () => {
+      // Reported bug: the card looked "stuck" open roughly 1 in 5 times a
+      // user clicked away from a focused item. Root cause: a click landing
+      // on a label's padded backdrop, a grid line, or a tick (all of which
+      // read as "empty space" to the user) became that element's own click
+      // target instead of world-content's, so handleBackgroundClick's
+      // target-is-currentTarget check silently failed. jsdom's fireEvent
+      // doesn't do real hit-testing, so it can't reproduce the click
+      // actually landing on one of these - this instead guards the CSS fix
+      // (pointer-events-none) that makes that impossible in a real browser.
+      render(<WorldViewport items={items} />);
+      for (const testId of [
+        "world-grid-line-x",
+        "world-grid-line-y",
+        "world-axis",
+        "world-fulcrum",
+        "world-tick",
+        "world-tick-y",
+      ]) {
+        for (const element of screen.getAllByTestId(testId)) {
+          expect(element).toHaveClass("pointer-events-none");
+        }
+      }
     });
 
     it("does not un-focus when a pan drag happens to end over empty space", () => {
