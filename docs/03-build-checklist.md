@@ -514,6 +514,29 @@ batch 9.
 5. Focus an item and vote while the simulation runs. Your vote must not be lost or
    overwritten.
 
+**Extended after merge, from phone/browser testing feedback:**
+- Voter count wasn't animating, only score - a drifting item only ever looked like it
+  moved sideways. Fixed by animating voter count over the same settle window as score,
+  for both real votes and simulated ones.
+- Simulation frequency raised (3.5s → 1.2s) and both settle animations sped up
+  (500ms → 300ms) - the original pacing felt slow.
+- Crowded-cell dot sizing switched from a log to a square-root scale (log plateaus too
+  early - most of the size range was already used up by ~15 members), and the max size
+  raised twice (22px → 26px → 44px) in response to feedback that it still wasn't
+  dramatic enough.
+- Fixed an intermittent (~1-in-5) bug where the focused item's card looked "stuck" open
+  after clicking away: decorative overlays (item labels, grid lines, the axis, ticks)
+  had no `pointer-events-none`, so a click landing on one of them - which reads as empty
+  space to the user - silently ate the click instead of reaching the real background.
+- Reverted the focused/votable dot's enlarged floor (raised to stay above the bigger
+  blobs) back to its original 28px - looked wrong once blobs got bigger.
+- Added a simple "Drag an item to vote" hint (shown once logged in); first placement
+  was hidden behind the top bar's own z-index, moved to the bottom.
+- Mock data replaced entirely: the old invented adjective/noun titles ("Silent Falcon")
+  confused testers. Now a curated pool of 550 real, recognizable, non-controversial
+  things (movies, animals, historical people, landmarks, concepts) - a stand-in for the
+  real Wikipedia/Wikidata content arriving in Stage 1 (batch 17).
+
 ---
 
 ## Batch 11 — Intro screen
