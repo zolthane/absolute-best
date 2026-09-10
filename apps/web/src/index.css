@@ -33,3 +33,57 @@
     overflow: hidden;
   }
 }
+
+/* Intro screen (batch 11) - abstract "weighing/tipping" motion in place of a
+   literal drawn seesaw (see IntroScreen.tsx's comment for why). */
+@keyframes teeter-tilt {
+  0%,
+  100% {
+    transform: rotate(-4deg);
+  }
+  50% {
+    transform: rotate(4deg);
+  }
+}
+
+@keyframes tagline-breathe {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes seesaw-bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@layer utilities {
+  .animate-teeter-tilt {
+    animation: teeter-tilt 3s ease-in-out infinite;
+  }
+  .animate-tagline-breathe {
+    animation: tagline-breathe 3.5s ease-in-out infinite;
+  }
+  .animate-seesaw-bounce {
+    animation: seesaw-bounce 0.6s ease-in-out infinite;
+  }
+}
+
+/* Batch 7's other accessibility requirement, applied to these decorative
+   loops too: they're purely cosmetic, so turning them off costs nothing. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-teeter-tilt,
+  .animate-tagline-breathe,
+  .animate-seesaw-bounce {
+    animation: none;
+  }
+}
