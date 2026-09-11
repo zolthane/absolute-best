@@ -12,6 +12,7 @@ import {
   minZoomYForItems,
   nextGridZoom,
   niceStep,
+  roundToStepPrecision,
   sampleGrid,
   screenToWorld,
   screenToWorldY,
@@ -120,21 +121,37 @@ const MAX_VOTE_MAGNITUDE = 10;
 // zoom, so it stays smooth at any zoom level rather than being diluted.
 const VOTE_BOUND_SAMPLE_COUNT = 80;
 
-// A classic tier-list background, in vertical bands along X (Zoltán's
-// request, once the damped displayScore - see displayScore.ts - made the map
-// read like a race rather than a sprawl): F on the losing end, S on the
-// winning one, each colour holding a slice of the displayed range - S is red,
-// matching the classic tier-list palette's own top-tier colour (flipped from
-// an initial, more literally "red=bad" first guess). F and S are
-// deliberately open-ended (maxWorldX: null) - most items cluster near the
-// fulcrum in the middle bands, and only genuinely one-sided conviction ever
-// reaches the outer two, so those shouldn't stop at a hard edge.
-const TIER_BANDS: { id: string; color: string; maxWorldX: number | null }[] = [
-  { id: "F", color: "#bfff7f", maxWorldX: -6 },
-  { id: "D", color: "#ffff7f", maxWorldX: -2 },
-  { id: "C", color: "#ffdf7f", maxWorldX: 2 },
-  { id: "B", color: "#ffbf7f", maxWorldX: 6 },
-  { id: "S", color: "#ff7f7f", maxWorldX: null },
+// Same idea as VOTE_BOUND_SAMPLE_COUNT, but for the tier-band background
+// (TIER_BANDS below) - lower, since a filled shape's edge reads as smoothly
+// curved from far fewer samples than a thin reference line needs.
+const TIER_BAND_SAMPLE_COUNT = 24;
+
+// A classic tier-list background, in bands along X (Zoltán's request, once
+// the damped displayScore - see displayScore.ts - made the map read like a
+// race rather than a sprawl): F on the losing end, S on the winning one - S
+// is red, matching the classic tier-list palette's own top-tier colour
+// (flipped from an initial, more literally "red=bad" first guess).
+//
+// Each boundary is a FRACTION of MAX_VOTE_MAGNITUDE, not a fixed displayed-X
+// value - the same curveX formula the +-10 reference curves already use (see
+// curveX below), just at fractions other than +-1. That's what makes a band
+// curve the way the reference lines do rather than being a straight vertical
+// strip: at a low voterCount, only a fraction of the full +-10 range is even
+// reachable (see invertDisplayX), so a band boundary drawn at a fixed
+// displayed-X would cut across territory no item near the ground could ever
+// actually occupy. F and S use +-1 (MAX_VOTE_MAGNITUDE itself) as their outer
+// edge rather than an arbitrary "off-screen" value - that IS the true edge
+// of the reachable region, the same curve the reference lines draw.
+//
+// Each band shades from `light` at the ground up to `dark` at high
+// voterCount (Zoltán's request) - more established conviction reads as a
+// deeper colour, not just a further one.
+const TIER_BANDS: { id: string; light: string; dark: string; fracLo: number; fracHi: number }[] = [
+  { id: "F", light: "#bfff7f", dark: "#698c46", fracLo: -1, fracHi: -0.6 },
+  { id: "D", light: "#ffff7f", dark: "#8c8c46", fracLo: -0.6, fracHi: -0.2 },
+  { id: "C", light: "#ffdf7f", dark: "#8c7b46", fracLo: -0.2, fracHi: 0.2 },
+  { id: "B", light: "#ffbf7f", dark: "#8c6946", fracLo: 0.2, fracHi: 0.6 },
+  { id: "S", light: "#ff7f7f", dark: "#8c4646", fracLo: 0.6, fracHi: 1 },
 ];
 
 // Screen pixels of drag per point of vote delta - deliberately independent
@@ -226,6 +243,13 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const worldContentRef = useRef<HTMLDivElement>(null);
+  // The tier-band background curves with voterCount (see TIER_BANDS/
+  // tierBandPaths below), so - unlike the X-only ruler layers - it needs
+  // the same full 2D live-drag transform as world-content itself. Kept as
+  // its own layer rather than living inside world-content so it can still
+  // be the very bottom-most thing painted (behind the axis and both
+  // rulers), which world-content (rendered after them, on top) can't be.
+  const tierBandsRef = useRef<HTMLDivElement>(null);
   // The X-axis ruler (vertical grid lines + score ticks along the bottom)
   // and the Y-axis ruler (horizontal grid lines + voter-count ticks along
   // the left) each get their own live-drag preview transform, along only
@@ -408,6 +432,9 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
     if (worldContentRef.current) {
       worldContentRef.current.style.transform = "";
     }
+    if (tierBandsRef.current) {
+      tierBandsRef.current.style.transform = "";
+    }
     if (xRulerRef.current) {
       xRulerRef.current.style.transform = "";
     }
@@ -557,6 +584,9 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
       if (worldContentRef.current) {
         worldContentRef.current.style.transform = `translate(${liveDeltaX}px, ${liveDeltaY}px)`;
       }
+      if (tierBandsRef.current) {
+        tierBandsRef.current.style.transform = `translate(${liveDeltaX}px, ${liveDeltaY}px)`;
+      }
       if (xRulerRef.current) {
         xRulerRef.current.style.transform = `translateX(${liveDeltaX}px)`;
       }
@@ -649,6 +679,17 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   const worldYSpan = Math.max(0, visibleTopWorldY - visibleBottomWorldY);
   const yBasedTopWorldY = Math.max(visibleTopWorldY, 0) + worldYSpan * PAN_BUFFER_FACTOR;
   const yBasedBottomWorldY = Math.min(visibleBottomWorldY, 0) - worldYSpan * PAN_BUFFER_FACTOR;
+  // The displayed X of a hypothetical item at this voterCount who has
+  // received nothing but the same vote, worth `fraction` of
+  // MAX_VOTE_MAGNITUDE, its whole life - fraction 1 (or -1) is exactly the
+  // +-10-forever reference curve below; other fractions are what the
+  // tier-band boundaries (TIER_BANDS) trace, so a band curves the same way
+  // the reference lines do instead of being a straight vertical strip.
+  const curveX = (fraction: number, worldY: number): number => {
+    const voterCount = 10 ** worldY;
+    const score = fraction * MAX_VOTE_MAGNITUDE * voterCount;
+    return displayScore({ score, voterCount });
+  };
   // Inverts the curve's own displayScore formula (x = sign*M*voterCount /
   // (voterCount+D)) to find the worldY at which this curve reaches a given
   // displayed-X magnitude. Unlike the pre-damping formula, this curve now
@@ -697,28 +738,35 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
     const span = top - bottom;
     return Array.from({ length: VOTE_BOUND_SAMPLE_COUNT + 1 }, (_, i) => {
       const worldY = bottom + (span * i) / VOTE_BOUND_SAMPLE_COUNT;
-      const voterCount = 10 ** worldY;
-      const score = sign * MAX_VOTE_MAGNITUDE * voterCount;
-      const x = worldToScreen(displayScore({ score, voterCount }), camera, viewportWidth);
+      const x = worldToScreen(curveX(sign, worldY), camera, viewportWidth);
       const y = worldToScreenY(worldY, cameraY, axisTopPx);
       return `${x},${y}`;
     }).join(" ");
   };
 
-  // Tier-band rects: each TIER_BANDS entry becomes a screen-space [left,
-  // right) slice, using the same buffered visible range ticks/items already
-  // render across - null (F and S's open ends) resolves to that buffer's own
-  // outer edge rather than a fixed value, so the colour still reaches past
-  // the edge of the screen during a live drag instead of revealing a gap.
-  const tierBandRects = TIER_BANDS.map((band, i) => {
-    const previousMax = TIER_BANDS[i - 1]?.maxWorldX ?? visibleMinWorld - bufferWorldWidth;
-    const thisMax = band.maxWorldX ?? visibleMaxWorld + bufferWorldWidth;
-    return {
-      id: band.id,
-      color: band.color,
-      left: worldToScreen(previousMax, camera, viewportWidth),
-      right: worldToScreen(thisMax, camera, viewportWidth),
-    };
+  // Tier-band polygons: each TIER_BANDS entry becomes a closed shape - up
+  // its fracHi curve from the bottom of the buffered Y range to the top,
+  // then back down its fracLo curve - filled with a vertical gradient from
+  // `light` at the bottom (the ground: 1 voter) to `dark` at the top (the
+  // most-voted item currently on screen, plus buffer). A coarser sample
+  // count than the reference curves: a filled region reads as smooth from
+  // far fewer points than a thin line needs to avoid visibly gapping.
+  const tierBandYSpan = yBasedTopWorldY - yBasedBottomWorldY;
+  const tierBandPaths = TIER_BANDS.map((band) => {
+    const points: string[] = [];
+    for (let i = 0; i <= TIER_BAND_SAMPLE_COUNT; i++) {
+      const worldY = yBasedBottomWorldY + (tierBandYSpan * i) / TIER_BAND_SAMPLE_COUNT;
+      const x = worldToScreen(curveX(band.fracHi, worldY), camera, viewportWidth);
+      const y = worldToScreenY(worldY, cameraY, axisTopPx);
+      points.push(`${x},${y}`);
+    }
+    for (let i = TIER_BAND_SAMPLE_COUNT; i >= 0; i--) {
+      const worldY = yBasedBottomWorldY + (tierBandYSpan * i) / TIER_BAND_SAMPLE_COUNT;
+      const x = worldToScreen(curveX(band.fracLo, worldY), camera, viewportWidth);
+      const y = worldToScreenY(worldY, cameraY, axisTopPx);
+      points.push(`${x},${y}`);
+    }
+    return { id: band.id, light: band.light, dark: band.dark, points: points.join(" ") };
   });
 
   // The axis ruler: grid lines and tick marks, each at its OWN world
@@ -738,25 +786,33 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   // wherever score 0 actually is, and an item's position against nearby
   // grid lines is continuously, honestly readable.
   //
-  // worldStepX is rounded up to a "nice" value (e.g. 1, 2, 5) rather than an
-  // arbitrary one, floored to 1 - the displayed X position (see
-  // displayScore.ts) is continuous, not a whole number like the underlying
-  // score, but the whole visible range only spans roughly
-  // +-MAX_VOTE_MAGNITUDE, so sub-1 ticks would rarely add anything. The
-  // visible range is padded by the same PAN_BUFFER_FACTOR buffer items get,
-  // so a live drag preview never reveals a gap at the leading edge before
-  // the next render supplies more ticks.
-  const worldStepX = Math.max(1, niceStep(RULER_TICK_SPACING_TARGET_PX / camera.zoom));
-  const firstTickX = Math.ceil((visibleMinWorld - bufferWorldWidth) / worldStepX) * worldStepX;
+  // worldStepX is rounded up to a "nice" value (e.g. 1, 0.5, 0.2) rather
+  // than an arbitrary one - no floor at 1 (unlike decadeStepY below): the
+  // displayed X position (see displayScore.ts) is continuous, not a whole
+  // number like the underlying score, and the whole visible range only
+  // spans roughly +-MAX_VOTE_MAGNITUDE, so zooming in on two close-together
+  // items needs sub-1 ticks to show anything more precise than the same
+  // handful of whole numbers. roundToStepPrecision guards against the
+  // floating-point noise repeatedly adding a fractional step accumulates
+  // (0.1 + 0.2 = 0.30000000000000004), which would otherwise show up
+  // straight in the label. The visible range is padded by the same
+  // PAN_BUFFER_FACTOR buffer items get, so a live drag preview never
+  // reveals a gap at the leading edge before the next render supplies more
+  // ticks.
+  const worldStepX = niceStep(RULER_TICK_SPACING_TARGET_PX / camera.zoom);
+  const firstTickX = roundToStepPrecision(
+    Math.ceil((visibleMinWorld - bufferWorldWidth) / worldStepX) * worldStepX,
+    worldStepX,
+  );
   const tickCountX = Math.floor((visibleMaxWorld + bufferWorldWidth - firstTickX) / worldStepX) + 1;
   const ticksX: { value: number; x: number }[] = [];
   for (let i = 0; i < tickCountX; i++) {
-    const value = firstTickX + i * worldStepX;
+    const value = roundToStepPrecision(firstTickX + i * worldStepX, worldStepX);
     const x = worldToScreen(value, camera, viewportWidth);
     // Skips a column too close to the left/right edge - its centred label
     // would otherwise be clipped in half by the viewport's own edge.
     if (x >= TICK_EDGE_MARGIN_PX && x <= viewportWidth - TICK_EDGE_MARGIN_PX) {
-      ticksX.push({ value, x });
+      ticksX.push({ value: value === 0 ? 0 : value, x });
     }
   }
 
@@ -1011,16 +1067,60 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
       onPointerCancel={handlePointerUp}
       onDragStart={(event) => event.preventDefault()}
     >
+      {/* The tier-list background (Zoltán's request): curved colour bands
+          behind everything else. Its own layer, not inside world-content,
+          so it can be the very bottom-most thing painted (behind the axis
+          and both rulers) while still getting world-content's full 2D
+          live-drag transform - see tierBandsRef's own comment for why it
+          needs that (unlike the X-only rulers below). */}
+      <div
+        ref={tierBandsRef}
+        data-testid="world-tier-bands"
+        className="pointer-events-none absolute inset-0"
+      >
+        <svg
+          aria-hidden="true"
+          className="absolute inset-0"
+          width={viewportWidth}
+          height={viewportHeight}
+        >
+          <defs>
+            {tierBandPaths.map((band) => (
+              <linearGradient
+                key={`tier-gradient-${band.id}`}
+                id={`tier-gradient-${band.id}`}
+                x1="0"
+                y1="1"
+                x2="0"
+                y2="0"
+              >
+                <stop offset="0%" stopColor={band.light} />
+                <stop offset="100%" stopColor={band.dark} />
+              </linearGradient>
+            ))}
+          </defs>
+          {tierBandPaths.map((band) => (
+            <polygon
+              key={`tier-band-${band.id}`}
+              data-testid="world-tier-band"
+              points={band.points}
+              fill={`url(#tier-gradient-${band.id})`}
+            />
+          ))}
+        </svg>
+      </div>
+
+      <div
+        data-testid="world-axis"
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-0.5 bg-black"
+      />
+
       {/* The X-axis ruler: vertical grid lines and score ticks, each at its
           own world position (so an item's position against them stays
           readable while dragging) - but in its own layer, transformed only
           horizontally during a live drag (see xRulerRef's own comment), so
           it stays pinned to the bottom of the screen regardless of any
-          vertical panning, the way a fixed axis reference should. Also
-          carries the tier-band background colours (Zoltán's request) - they
-          need the same X-only transform as the grid, and painting them here,
-          before world-axis below, keeps the axis line visible on top of
-          them rather than covered by a full-height colour band. */}
+          vertical panning, the way a fixed axis reference should. */}
       {/* pointer-events-none throughout both rulers: purely decorative, and
           without it a click landing on one of these (a grid line, a tick's
           label) becomes that element's click instead of falling through to
@@ -1031,19 +1131,6 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
         data-testid="world-x-ruler"
         className="pointer-events-none absolute inset-0"
       >
-        {tierBandRects.map((band) => (
-          <div
-            key={`tier-${band.id}`}
-            data-testid="world-tier-band"
-            className="pointer-events-none absolute top-0 h-full"
-            style={{
-              left: band.left,
-              width: Math.max(0, band.right - band.left),
-              backgroundColor: band.color,
-            }}
-          />
-        ))}
-
         {ticksX.map(({ x }) => (
           <div
             key={`grid-x-${x}`}
@@ -1065,11 +1152,6 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
           </div>
         ))}
       </div>
-
-      <div
-        data-testid="world-axis"
-        className="pointer-events-none absolute inset-x-0 bottom-0 h-0.5 bg-black"
-      />
 
       {/* The Y-axis ruler - the same idea as the X one above, mirrored:
           transformed only vertically during a live drag, staying pinned to

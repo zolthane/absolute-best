@@ -13,6 +13,11 @@ import { WorldViewport } from "../WorldViewport";
 // tests, run against plain functions. These tests only prove the component
 // wires pointer events through to the camera store correctly.
 
+const parseCurvePoints = (el: Element | null | undefined): [number, number][] =>
+  (el?.getAttribute("points") ?? "")
+    .split(" ")
+    .map((pair) => pair.split(",").map(Number) as [number, number]);
+
 beforeEach(() => {
   useCameraStore.setState({
     camera: { center: 0, zoom: 4 },
@@ -697,40 +702,70 @@ describe("WorldViewport", () => {
   });
 
   describe("tier-list background", () => {
-    it("paints five bands across the map, from F (losing end) to S (winning end)", () => {
-      render(<WorldViewport />);
+    it("paints five bands, in F -> S order, each filled by its own light-to-dark gradient", () => {
+      const { container } = render(<WorldViewport />);
       const bands = screen.getAllByTestId("world-tier-band");
       expect(bands).toHaveLength(5);
 
       // Drawn in F -> S order, and F sits on the negative (losing) side, so
-      // each band's left edge should be further right than the previous.
-      const lefts = bands.map((band) => Number.parseFloat(band.style.left));
-      expect(lefts).toEqual([...lefts].sort((a, b) => a - b));
+      // each band's average X should be further right than the previous.
+      const averageX = (band: Element) => {
+        const points = parseCurvePoints(band);
+        return points.reduce((sum, [x]) => sum + x, 0) / points.length;
+      };
+      const xs = bands.map(averageX);
+      expect(xs).toEqual([...xs].sort((a, b) => a - b));
 
-      expect(bands[0]).toHaveStyle({ backgroundColor: "rgb(191, 255, 127)" }); // F
-      expect(bands[4]).toHaveStyle({ backgroundColor: "rgb(255, 127, 127)" }); // S
+      expect(bands[0]).toHaveAttribute("fill", "url(#tier-gradient-F)");
+      expect(bands[4]).toHaveAttribute("fill", "url(#tier-gradient-S)");
+
+      // S is red (matching the classic tier-list palette's top-tier colour),
+      // F is green - light (the ground) at the bottom stop, dark (many
+      // voters) at the top one.
+      const stopsFor = (id: string) => [
+        ...(container.querySelector(`#tier-gradient-${id}`)?.querySelectorAll("stop") ?? []),
+      ];
+      const [fLight, fDark] = stopsFor("F");
+      const [sLight, sDark] = stopsFor("S");
+      expect(fLight).toHaveAttribute("stop-color", "#bfff7f");
+      expect(fDark).toHaveAttribute("stop-color", "#698c46");
+      expect(sLight).toHaveAttribute("stop-color", "#ff7f7f");
+      expect(sDark).toHaveAttribute("stop-color", "#8c4646");
     });
 
-    it("keeps F and S open-ended, reaching past both edges of the viewport", () => {
+    it("curves each band's outer edge the way the +-10 reference lines do, rather than a straight vertical strip", () => {
       render(<WorldViewport />);
       const bands = screen.getAllByTestId("world-tier-band");
-      const f = bands[0];
       const s = bands[bands.length - 1];
-      expect(f).toBeDefined();
       expect(s).toBeDefined();
-      if (!f || !s) throw new Error("fixture error");
+      if (!s) throw new Error("fixture error");
 
-      expect(Number.parseFloat(f.style.left)).toBeLessThan(0);
-      const sRight = Number.parseFloat(s.style.left) + Number.parseFloat(s.style.width);
-      expect(sRight).toBeGreaterThan(1000); // viewportWidth from beforeEach
+      // The S band's outer (right-hand) edge is exactly the +10-forever
+      // curve (fracHi: 1) - its points should vary in X (curving in towards
+      // the fulcrum as voterCount drops towards the ground), not sit at a
+      // single fixed X the way a plain vertical strip would.
+      const xs = parseCurvePoints(s).map(([x]) => x);
+      expect(new Set(xs).size).toBeGreaterThan(1);
     });
 
-    it("nests the tier bands inside the X ruler, so they live-track a horizontal drag", () => {
-      render(<WorldViewport />);
-      const ruler = screen.getByTestId("world-x-ruler");
-      for (const band of screen.getAllByTestId("world-tier-band")) {
-        expect(ruler).toContainElement(band);
-      }
+    it("lives in its own layer behind the axis and rulers, tracking the full 2D live-drag preview", () => {
+      // A single, near-centre item keeps the pan bounds wide open, so this
+      // drag isn't clipped by them - same reasoning the axis ruler tests
+      // above use for their own fixture.
+      const items: Item[] = [
+        { id: "a", title: "Alpha", score: 0, voterCount: 10, order: 0, tags: [] },
+      ];
+      render(<WorldViewport items={items} />);
+      const viewport = screen.getByTestId("world-viewport");
+      const bands = screen.getByTestId("world-tier-bands");
+      expect(viewport).toContainElement(bands);
+
+      fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 500, clientY: 400 });
+      fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 460, clientY: 300 });
+      expect(bands).toHaveStyle({ transform: "translate(-40px, -100px)" });
+
+      fireEvent.pointerUp(viewport, { pointerId: 1, clientX: 460, clientY: 300 });
+      expect(bands).toHaveStyle({ transform: "none" });
     });
   });
 
@@ -750,11 +785,6 @@ describe("WorldViewport", () => {
       expect(zeroLine).toHaveAttribute("y1", "0");
       expect(zeroLine).toHaveAttribute("y2", "800");
     });
-
-    const parseCurvePoints = (el: Element | undefined): [number, number][] =>
-      (el?.getAttribute("points") ?? "")
-        .split(" ")
-        .map((pair) => pair.split(",").map(Number) as [number, number]);
 
     it("curves down towards the origin as it approaches the ground, rather than a straight line to it", () => {
       render(<WorldViewport items={items} />);
