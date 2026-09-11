@@ -33,7 +33,7 @@
 | 8 | Search | 2 | Type a name; fly to it | [x] |
 | 9 | Add an entry from a link | 2 | Paste a link twice; the second is refused as a duplicate | [x] |
 | 10 | The living world | 2 | Watch items drift as fake people vote | [x] |
-| 11 | Intro screen | 2–3 | The full first-run experience | [ ] |
+| 11 | Intro screen | 2–3 | The full first-run experience | [x] |
 | 12 | End-to-end tests and polish | 3–4 | One command proves the whole journey works | [ ] |
 
 **Total: roughly 32–42 hours.** At a few hours a week, expect **two to three months**. There
@@ -543,13 +543,16 @@ batch 9.
 
 Deliberately late: it is presentation, and the risky parts came first.
 
-- [ ] Centred "Teeter" logo with the tagline *"Tip the scales."* (business plan §14.4)
-- [ ] **The wordmark balances on a pivot and rocks gently (W3)**
-- [ ] Start button
-- [ ] Animated transition: the logo shrinks away as the axis draws itself in
-- [ ] **A "?" button that reopens this explanation from the map (S2)** — for everyone who
+- [x] Centred "Teeter" logo with the tagline *"Tip the scales."* (business plan §14.4)
+- [x] **The wordmark balances on a pivot and rocks gently (W3)** — as an abstract tilt, not a
+      drawn beam and fulcrum (see the note below)
+- [x] Start button
+- [x] Animated transition: the logo shrinks away as the axis draws itself in — the logo
+      shrinks and fades over 600ms, revealing the map already in place; the axis does not
+      draw itself in stroke by stroke
+- [x] **A "?" button that reopens this explanation from the map (S2)** — for everyone who
       clicks straight past the intro
-- [ ] **Seesaw loading indicator (W3)**
+- [x] **Seesaw loading indicator (W3)** — as an abstract two-dot bounce, same reasoning
 - [ ] ~~Feedback `mailto:` link~~ — **deferred**: S2 asked for one, but S3 chose to wait for
       a domain, so there is no address yet. Add it the moment there is one
 
@@ -564,6 +567,15 @@ Deliberately late: it is presentation, and the risky parts came first.
 4. Reload again and press Start immediately, before the animation settles. Nothing should
    break.
 5. Make the browser window very narrow, then very wide. The layout should hold together.
+
+**Done when:** tested and confirmed working.
+
+**Built without the literal seesaw imagery, deliberately.** W3 asked for a wordmark
+balancing on a drawn pivot and a seesaw loading icon. By the time this batch arrived, the
+map itself had stopped reading as a seesaw (see `06-naming-brainstorm.md`), so drawing a
+beam-and-fulcrum here would have been the only literal seesaw left in the whole product.
+Replaced with an abstract tilt and an abstract bounce. Cheap to swap back if "Teeter" and
+the balance framing both survive the naming question.
 
 ---
 
