@@ -537,43 +537,250 @@ describe("WorldViewport", () => {
       { id: "b", title: "B", score: 1000, voterCount: 10, order: 1, tags: [] },
     ];
 
-    it("keeps X tick marks at the same screen position after panning, and relabels them instead", () => {
+    it("moves X tick marks by exactly the dragged distance, keeping their world value", () => {
+      // The grid now lives at its own world position, like an item - not a
+      // fixed screen position that only relabels (batch 6b's old design,
+      // reverted): that design kept the ruler motionless during a pan, but
+      // made it impossible to read an item's position against "its" grid
+      // line while dragging (the grid never moved to match). "0" starts
+      // under the pointer's start position (the fulcrum, screen middle -
+      // 500px into this 1000px viewport) - dragging it to 100 must carry
+      // that same tick there too, the same 1:1 tracking items and the
+      // fulcrum already have.
       render(<WorldViewport items={items} />);
-      const positionsBefore = screen.getAllByTestId("world-tick").map((tick) => tick.style.left);
-      const labelsBefore = screen.getAllByTestId("world-tick").map((tick) => tick.textContent);
-
       const viewport = screen.getByTestId("world-viewport");
       fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 500 });
       fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 100 });
       fireEvent.pointerUp(viewport, { pointerId: 1, clientX: 100 });
 
-      const positionsAfter = screen.getAllByTestId("world-tick").map((tick) => tick.style.left);
-      const labelsAfter = screen.getAllByTestId("world-tick").map((tick) => tick.textContent);
-
-      expect(positionsAfter).toEqual(positionsBefore);
-      expect(labelsAfter).not.toEqual(labelsBefore);
+      const zeroTick = screen.getAllByTestId("world-tick").find((tick) => tick.textContent === "0");
+      expect(zeroTick).toHaveStyle({ left: "100px" });
     });
 
-    it("keeps Y tick marks at the same screen position after a vertical pan, and relabels them instead", () => {
+    it("keeps the tick at the screen's middle reading 0 through repeated zooming, unpanned", () => {
+      // Reported bug: zooming (without panning) made the zero point appear
+      // to slide right then snap back left, and the mirror zooming out -
+      // whichever tick landed nearest the true (unpanned) zero position -
+      // the screen's middle - drifted as spacing changed and jumped
+      // whenever worldStepX ticked over to a new "nice" value. Now that
+      // ticks sit at their own exact world value, 0 is always one of them
+      // (every "nice" step divides it evenly) and lands exactly on the
+      // middle whenever camera.center is 0, at any zoom - no drift or jump.
+      // Zooming at the screen's middle (clientX 500, matching this
+      // fixture's 1000px viewport) keeps camera.center at 0 throughout.
       render(<WorldViewport items={items} />);
-      const positionsBefore = screen.getAllByTestId("world-tick-y").map((tick) => tick.style.top);
-      const labelsBefore = screen.getAllByTestId("world-tick-y").map((tick) => tick.textContent);
-
       const viewport = screen.getByTestId("world-viewport");
+
+      for (let i = 0; i < 8; i++) {
+        fireEvent.wheel(viewport, { deltaY: -100, clientX: 500, clientY: 400 });
+        const middleTick = screen
+          .getAllByTestId("world-tick")
+          .find((tick) => tick.style.left === "500px");
+        expect(middleTick).toHaveTextContent("0");
+      }
+    });
+
+    it("moves Y tick marks by exactly the dragged distance, keeping their world value", () => {
+      // The ground ("1") starts at screenY 640 (axisTopPx, the beforeEach
+      // camera's ground position) - dragging down by 100px must carry that
+      // same tick to 740, the same 1:1 tracking items and the fulcrum
+      // already have.
+      render(<WorldViewport items={items} />);
+      const viewport = screen.getByTestId("world-viewport");
+      fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 500, clientY: 400 });
+      fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 500, clientY: 500 });
+      fireEvent.pointerUp(viewport, { pointerId: 1, clientX: 500, clientY: 500 });
+
+      const groundTick = screen
+        .getAllByTestId("world-tick-y")
+        .find((tick) => tick.textContent === "1");
+      expect(groundTick).toHaveStyle({ top: "740px" });
+    });
+
+    it("hides sub-1-voter Y ticks (0.1, 0.01, ...) rather than labelling them, though panning past the ground is still allowed", () => {
+      render(<WorldViewport items={items} />);
+      const viewport = screen.getByTestId("world-viewport");
+
+      // Drags far enough past the ground that, before this, several rows
+      // would have read "0.1", "0.01", etc - meaningless, since there is no
+      // such thing as fewer than 1 voter.
       fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 500, clientY: 400 });
       fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 500, clientY: 250 });
       fireEvent.pointerUp(viewport, { pointerId: 1, clientX: 500, clientY: 250 });
 
-      const positionsAfter = screen.getAllByTestId("world-tick-y").map((tick) => tick.style.top);
-      const labelsAfter = screen.getAllByTestId("world-tick-y").map((tick) => tick.textContent);
-
-      expect(positionsAfter).toEqual(positionsBefore);
-      expect(labelsAfter).not.toEqual(labelsBefore);
+      for (const label of screen.getAllByTestId("world-tick-y").map((tick) => tick.textContent)) {
+        expect(label).not.toMatch(/^0\./);
+      }
     });
 
-    it("pins the ground line and grid to the bottom/left edges of the viewport, not the world", () => {
+    it("nests the X ruler's grid lines and ticks inside its own layer, and the Y ruler's inside its own", () => {
+      render(<WorldViewport items={items} />);
+      const xRuler = screen.getByTestId("world-x-ruler");
+      const yRuler = screen.getByTestId("world-y-ruler");
+      for (const element of [
+        ...screen.getAllByTestId("world-tick"),
+        ...screen.getAllByTestId("world-grid-line-x"),
+      ]) {
+        expect(xRuler).toContainElement(element);
+      }
+      for (const element of [
+        ...screen.getAllByTestId("world-tick-y"),
+        ...screen.getAllByTestId("world-grid-line-y"),
+      ]) {
+        expect(yRuler).toContainElement(element);
+      }
+    });
+
+    it("previews the X ruler's live drag horizontally only, even during a diagonal drag", () => {
+      // Reported: the numbers along the bottom stayed frozen in place for
+      // the whole gesture, only snapping to their new position on release -
+      // worse, once they did move live (a previous fix), a purely vertical
+      // drag also carried the score ruler away from the bottom edge, since
+      // it shared world-content's full 2D preview transform. A ruler is a
+      // fixed reference frame - the score ruler should track panning along
+      // its own axis live, but stay pinned to the bottom regardless of any
+      // vertical component to the drag.
+      render(<WorldViewport items={items} />);
+      const viewport = screen.getByTestId("world-viewport");
+
+      fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 500, clientY: 400 });
+      fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 460, clientY: 300 });
+
+      expect(screen.getByTestId("world-x-ruler")).toHaveStyle({
+        transform: "translateX(-40px)",
+      });
+    });
+
+    it("previews the Y ruler's live drag vertically only, even during a diagonal drag", () => {
+      render(<WorldViewport items={items} />);
+      const viewport = screen.getByTestId("world-viewport");
+
+      fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 500, clientY: 400 });
+      fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 300, clientY: 440 });
+
+      expect(screen.getByTestId("world-y-ruler")).toHaveStyle({
+        transform: "translateY(40px)",
+      });
+    });
+
+    it("clears both rulers' preview transforms once the gesture is committed", () => {
+      render(<WorldViewport items={items} />);
+      const viewport = screen.getByTestId("world-viewport");
+
+      fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 500, clientY: 400 });
+      fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 460, clientY: 300 });
+      fireEvent.pointerUp(viewport, { pointerId: 1, clientX: 460, clientY: 300 });
+
+      expect(screen.getByTestId("world-x-ruler")).toHaveStyle({ transform: "none" });
+      expect(screen.getByTestId("world-y-ruler")).toHaveStyle({ transform: "none" });
+    });
+
+    it("pins the axis baseline to the bottom edge of the viewport, not the world", () => {
       render(<WorldViewport items={items} />);
       expect(screen.getByTestId("world-axis")).toHaveClass("bottom-0");
+    });
+  });
+
+  describe("reference lines", () => {
+    const items: Item[] = [
+      { id: "a", title: "A", score: -1000, voterCount: 10, order: 0, tags: [] },
+      { id: "b", title: "B", score: 1000, voterCount: 10, order: 1, tags: [] },
+    ];
+
+    it("draws a bold vertical line at score 0, matching the fulcrum", () => {
+      render(<WorldViewport items={items} />);
+      // camera is centred on 0 (beforeEach), so world 0 sits at the
+      // horizontal centre, 500px into the 1000px-wide viewport.
+      const zeroLine = screen.getByTestId("world-zero-line");
+      expect(zeroLine).toHaveAttribute("x1", "500");
+      expect(zeroLine).toHaveAttribute("x2", "500");
+      expect(zeroLine).toHaveAttribute("y1", "0");
+      expect(zeroLine).toHaveAttribute("y2", "800");
+    });
+
+    const parseCurvePoints = (el: Element | undefined): [number, number][] =>
+      (el?.getAttribute("points") ?? "")
+        .split(" ")
+        .map((pair) => pair.split(",").map(Number) as [number, number]);
+
+    it("curves down towards the origin as it approaches the ground, rather than a straight line to it", () => {
+      render(<WorldViewport items={items} />);
+      const [positiveCurve, negativeCurve] = screen.getAllByTestId("world-vote-bound-line");
+      const positivePoints = parseCurvePoints(positiveCurve);
+      const negativePoints = parseCurvePoints(negativeCurve);
+
+      // Both curves' very first sample (their lowest world-Y, deep below
+      // the ground) sits within a pixel of the fulcrum (screenX 500) -
+      // close enough to read as originating from zero, without it actually
+      // being a straight line there: every following point keeps moving
+      // farther out in the same direction (or holds, where a run of the
+      // very earliest points differ by less than float precision can
+      // represent) - a continuously curving approach, never a jump back.
+      expect(positivePoints[0]?.[0]).toBeCloseTo(500, 0);
+      expect(negativePoints[0]?.[0]).toBeCloseTo(500, 0);
+
+      const isMonotonicallyAwayFromCenter = (points: [number, number][], direction: 1 | -1) =>
+        points.every((point, i) => {
+          const previous = points[i - 1];
+          return i === 0 || !previous || direction * (point[0] - previous[0]) >= 0;
+        });
+      expect(isMonotonicallyAwayFromCenter(positivePoints, 1)).toBe(true);
+      expect(isMonotonicallyAwayFromCenter(negativePoints, -1)).toBe(true);
+    });
+
+    it("keeps consecutive points on the +10 curve close enough together to stay visible even at a high X zoom", () => {
+      // Reported bug: a fixed world-Y sampling step gave plenty of
+      // resolution near the ground but far too little once zoomed in on a
+      // narrow score window further out along the (exponential) curve - a
+      // gap between two samples wider than the whole visible window reads
+      // as "no curve here".
+      useCameraStore.setState({
+        camera: { center: 300, zoom: 500 },
+        cameraY: { centerY: 0, zoomY: 100 },
+        viewportWidth: 1000,
+        viewportHeight: 800,
+      });
+      render(<WorldViewport items={items} />);
+      const [positiveCurve] = screen.getAllByTestId("world-vote-bound-line");
+      const points = parseCurvePoints(positiveCurve);
+      const gaps = points
+        .slice(1)
+        .map((point, i) => Math.abs(point[0] - (points[i]?.[0] ?? point[0])));
+      // Only a 1000/500 = 2-unit-wide score window is actually visible at
+      // this zoom - any gap under the full viewport width can't produce a
+      // visible break in the line.
+      expect(Math.max(...gaps)).toBeLessThan(1000);
+    });
+
+    it("keeps consecutive points on the -10 curve close enough together to stay visible even at a high X zoom", () => {
+      useCameraStore.setState({
+        camera: { center: -300, zoom: 500 },
+        cameraY: { centerY: 0, zoomY: 100 },
+        viewportWidth: 1000,
+        viewportHeight: 800,
+      });
+      render(<WorldViewport items={items} />);
+      const [, negativeCurve] = screen.getAllByTestId("world-vote-bound-line");
+      const points = parseCurvePoints(negativeCurve);
+      const gaps = points
+        .slice(1)
+        .map((point, i) => Math.abs(point[0] - (points[i]?.[0] ?? point[0])));
+      expect(Math.max(...gaps)).toBeLessThan(1000);
+    });
+
+    it("nests the fulcrum and reference lines inside world-content, so they track the live drag preview like items do", () => {
+      // Reported bug: the fulcrum (and, before this, nothing represented the
+      // vote bounds at all) sat alongside the fixed ruler instead, so it
+      // stayed frozen for an entire drag gesture while the items it's meant
+      // to be positioned relative to visibly slid underneath it via
+      // world-content's live CSS preview transform.
+      render(<WorldViewport items={items} />);
+      const worldContent = screen.getByTestId("world-content");
+      expect(worldContent).toContainElement(screen.getByTestId("world-fulcrum"));
+      expect(worldContent).toContainElement(screen.getByTestId("world-zero-line"));
+      for (const curve of screen.getAllByTestId("world-vote-bound-line")) {
+        expect(worldContent).toContainElement(curve);
+      }
     });
   });
 
