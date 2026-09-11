@@ -15,6 +15,7 @@ export {
   verticalCameraFromUrlParams,
   verticalCameraToUrlParams,
 } from "./cameraUrl";
+export { DISPLAY_SCORE_DAMPING, type DisplayScoredItem, displayScore } from "./displayScore";
 export { fitCameraToItems } from "./entryView";
 export { computeFocusCamera } from "./focus";
 export {

@@ -110,6 +110,8 @@ describe("NewEntryDialog", () => {
     openDialogAndSubmit("https://example.com/a");
 
     const [targetCamera] = animateTo.mock.calls[0] ?? [];
-    expect(targetCamera?.center).toBe(7);
+    // displayScore = 7 / (1 + DISPLAY_SCORE_DAMPING) = 7/11 - the vote raises
+    // voterCount from 0 to 1.
+    expect(targetCamera?.center).toBeCloseTo(7 / 11, 9);
   });
 });

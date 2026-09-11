@@ -1,23 +1,32 @@
 import { describe, expect, it } from "vitest";
 import { worldToScreen } from "../camera";
+import { DISPLAY_SCORE_DAMPING } from "../displayScore";
 import { computeFocusCamera } from "../focus";
 
 interface TestItem {
   score: number;
+  voterCount: number;
 }
 
+// voterCount: 0 makes displayScore(item) === score / DISPLAY_SCORE_DAMPING,
+// so an item at index i displays at position i - keeping this file's
+// expected screen positions in the same round numbers regardless of the
+// damping constant.
 function evenlySpacedItems(count: number): TestItem[] {
-  return Array.from({ length: count }, (_, i) => ({ score: i }));
+  return Array.from({ length: count }, (_, i) => ({
+    score: i * DISPLAY_SCORE_DAMPING,
+    voterCount: 0,
+  }));
 }
 
 describe("computeFocusCamera", () => {
-  it("centres the camera exactly on the target's score", () => {
+  it("centres the camera exactly on the target's displayed position", () => {
     const items = evenlySpacedItems(200);
     const target = items[100];
     if (!target) throw new Error("fixture error");
 
     const camera = computeFocusCamera(target, items, 1500);
-    expect(camera.center).toBe(target.score);
+    expect(camera.center).toBe(100);
   });
 
   it("picks a zoom that includes roughly 20 neighbours each side", () => {
@@ -51,8 +60,12 @@ describe("computeFocusCamera", () => {
     expect(camera.zoom).toBeGreaterThan(0);
   });
 
-  it("does not produce a zero-width view when every item shares the target's score", () => {
-    const items: TestItem[] = [{ score: 7 }, { score: 7 }, { score: 7 }];
+  it("does not produce a zero-width view when every item shares the target's displayed position", () => {
+    const items: TestItem[] = [
+      { score: 7 * DISPLAY_SCORE_DAMPING, voterCount: 0 },
+      { score: 7 * DISPLAY_SCORE_DAMPING, voterCount: 0 },
+      { score: 7 * DISPLAY_SCORE_DAMPING, voterCount: 0 },
+    ];
     const camera = computeFocusCamera(items[0] as TestItem, items, 1500);
     expect(camera.center).toBe(7);
     expect(Number.isFinite(camera.zoom)).toBe(true);

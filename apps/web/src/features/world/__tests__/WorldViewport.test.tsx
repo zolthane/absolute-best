@@ -161,14 +161,17 @@ describe("WorldViewport", () => {
   });
 
   describe("items", () => {
-    it("positions a dot at the screen location of its score", () => {
+    it("positions a dot at the screen location of its displayed score", () => {
       const items: Item[] = [
         { id: "1", title: "Solo", score: 20, voterCount: 100, order: 0, tags: [] },
       ];
       render(<WorldViewport items={items} />);
 
-      // camera is { center: 0, zoom: 4 }, viewportWidth 1000: worldToScreen(20) = 20*4 + 500 = 580.
-      expect(screen.getByTestId("item-dot")).toHaveStyle({ left: "580px" });
+      // displayScore = 20 / (100 + DISPLAY_SCORE_DAMPING) = 20/110. camera is
+      // { center: 0, zoom: 4 }, viewportWidth 1000:
+      // worldToScreen(20/110) = (20/110)*4 + 500.
+      const actualScreenX = Number.parseFloat(screen.getByTestId("item-dot").style.left);
+      expect(actualScreenX).toBeCloseTo((20 / 110) * 4 + 500, 9);
     });
 
     it("positions a dot at the screen location of its (log) voter count", () => {
@@ -240,9 +243,10 @@ describe("WorldViewport", () => {
 
       const dots = screen.getAllByTestId("item-dot");
       expect(dots).toHaveLength(1);
-      // worldToScreen(2, {center:0,zoom:4}, 1000) = 508 - Alpha's position,
-      // the older of the two on this voterCount tie.
-      expect(Number.parseFloat(dots[0]?.style.left ?? "")).toBeCloseTo(508, 9);
+      // displayScore(Alpha) = 2/(100+10) = 2/110. worldToScreen(2/110,
+      // {center:0,zoom:4}, 1000) - Alpha's position, the older of the two on
+      // this voterCount tie.
+      expect(Number.parseFloat(dots[0]?.style.left ?? "")).toBeCloseTo((2 / 110) * 4 + 500, 9);
     });
 
     it("keeps items in different cells as separate dots", () => {
@@ -285,11 +289,21 @@ describe("WorldViewport", () => {
       // the whole dataset by construction. zoomY is flattened to 1 here so
       // the two items' very different voter counts don't also separate them
       // vertically - this test is about label priority, not geometry.
-      useCameraStore.setState({ cameraY: { centerY: 0, zoomY: 1 } });
+      // camera.zoom is chosen (with GRID_CELL_SIZE_PX=40) so that
+      // displayScore(Alpha) ≈ 0.909 and displayScore(Zz) ≈ 1.067 straddle a
+      // grid cell boundary at 1.0 - different cells (so each still attempts
+      // its own label), a few pixels apart on screen (so those labels still
+      // collide) - the same trick the original raw-score version of this
+      // test used at score 9 vs 10, replicated in the new, much narrower
+      // (roughly +-MAX_VOTE_MAGNITUDE) displayed range.
+      useCameraStore.setState({
+        camera: { center: 0, zoom: 40 },
+        cameraY: { centerY: 0, zoomY: 1 },
+      });
       const items: Item[] = [
-        { id: "a", title: "Alpha", score: 9, voterCount: 1, order: 0, tags: [] },
-        { id: "b", title: "Beta", score: 9, voterCount: 1, order: 1, tags: [] },
-        { id: "c", title: "Zz", score: 10, voterCount: 5, order: 2, tags: [] },
+        { id: "a", title: "Alpha", score: 10, voterCount: 1, order: 0, tags: [] },
+        { id: "b", title: "Beta", score: 10, voterCount: 1, order: 1, tags: [] },
+        { id: "c", title: "Zz", score: 16, voterCount: 5, order: 2, tags: [] },
       ];
       render(<WorldViewport items={items} />);
 
@@ -423,7 +437,8 @@ describe("WorldViewport", () => {
 
       expect(animateTo).toHaveBeenCalledTimes(1);
       const [target, targetY] = animateTo.mock.calls[0] ?? [];
-      expect(target?.center).toBe(35);
+      // displayScore = 35 / (100 + DISPLAY_SCORE_DAMPING).
+      expect(target?.center).toBeCloseTo(35 / 110, 9);
       // voterCount is 100: log10(100) = 2.
       expect(targetY?.centerY).toBeCloseTo(2, 9);
       animateTo.mockRestore();
@@ -731,11 +746,15 @@ describe("WorldViewport", () => {
     it("keeps consecutive points on the +10 curve close enough together to stay visible even at a high X zoom", () => {
       // Reported bug: a fixed world-Y sampling step gave plenty of
       // resolution near the ground but far too little once zoomed in on a
-      // narrow score window further out along the (exponential) curve - a
-      // gap between two samples wider than the whole visible window reads
-      // as "no curve here".
+      // narrow window further out along the curve - a gap between two
+      // samples wider than the whole visible window reads as "no curve
+      // here". Now that the curve is damped (displayScore.ts), it
+      // asymptotes towards +MAX_VOTE_MAGNITUDE rather than growing without
+      // bound, so the equivalent extreme is zooming in near that asymptote
+      // (voterCount, and therefore worldY, changing enormously for a tiny
+      // change in displayed X) rather than a large raw-score value.
       useCameraStore.setState({
-        camera: { center: 300, zoom: 500 },
+        camera: { center: 9.9, zoom: 500 },
         cameraY: { centerY: 0, zoomY: 100 },
         viewportWidth: 1000,
         viewportHeight: 800,
@@ -746,15 +765,14 @@ describe("WorldViewport", () => {
       const gaps = points
         .slice(1)
         .map((point, i) => Math.abs(point[0] - (points[i]?.[0] ?? point[0])));
-      // Only a 1000/500 = 2-unit-wide score window is actually visible at
-      // this zoom - any gap under the full viewport width can't produce a
-      // visible break in the line.
+      // Any gap under the full viewport width can't produce a visible break
+      // in the line.
       expect(Math.max(...gaps)).toBeLessThan(1000);
     });
 
     it("keeps consecutive points on the -10 curve close enough together to stay visible even at a high X zoom", () => {
       useCameraStore.setState({
-        camera: { center: -300, zoom: 500 },
+        camera: { center: -9.9, zoom: 500 },
         cameraY: { centerY: 0, zoomY: 100 },
         viewportWidth: 1000,
         viewportHeight: 800,
@@ -1060,6 +1078,11 @@ describe("WorldViewport", () => {
 
     it("keeps the Submit button on the item being voted on, even if the pointer ends up hovering a different dot", () => {
       useAuthStore.setState({ username: "Alice" });
+      // Raised above the default test fixture zoom: displayed X (see
+      // displayScore.ts) is bounded to roughly +-MAX_VOTE_MAGNITUDE, so
+      // these two items' modest displayed gap needs a higher zoom than the
+      // old unbounded raw-score world did to still land in separate dots.
+      useCameraStore.setState({ camera: { center: 0, zoom: 1000 } });
       const twoItems: Item[] = [
         { id: "a", title: "Alpha", score: 20, voterCount: 100, order: 0, tags: [] },
         { id: "b", title: "Beta", score: 30, voterCount: 100, order: 1, tags: [] },

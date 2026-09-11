@@ -1,7 +1,9 @@
 import {
   cameraToUrlParams,
   computeFocusCamera,
+  DISPLAY_SCORE_DAMPING,
   declutterLabels,
+  displayScore,
   filterByVisibleRange,
   findPassedItem,
   type GridCellAssignment,
@@ -300,12 +302,14 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   // side - a "there's nothing more to see this way" guardrail for both
   // axes. Half a screen's worth of world-units depends on the current zoom,
   // so this is recomputed every render, not a fixed constant.
-  const scores = effectiveItems.map((item) => item.score);
-  const minScore = scores.length > 0 ? Math.min(...scores) : Number.NEGATIVE_INFINITY;
-  const maxScore = scores.length > 0 ? Math.max(...scores) : Number.POSITIVE_INFINITY;
+  const displayPositions = effectiveItems.map((item) => displayScore(item));
+  const minDisplayX =
+    displayPositions.length > 0 ? Math.min(...displayPositions) : Number.NEGATIVE_INFINITY;
+  const maxDisplayX =
+    displayPositions.length > 0 ? Math.max(...displayPositions) : Number.POSITIVE_INFINITY;
   const halfScreenWorldX = viewportWidth / 2 / camera.zoom;
-  const minCenterX = minScore - halfScreenWorldX;
-  const maxCenterX = maxScore + halfScreenWorldX;
+  const minCenterX = minDisplayX - halfScreenWorldX;
+  const maxCenterX = maxDisplayX + halfScreenWorldX;
 
   const maxVoterCount = Math.max(1, ...effectiveItems.map((item) => item.voterCount));
   const maxWorldY = Math.log10(maxVoterCount);
@@ -628,25 +632,40 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   const worldYSpan = Math.max(0, visibleTopWorldY - visibleBottomWorldY);
   const yBasedTopWorldY = Math.max(visibleTopWorldY, 0) + worldYSpan * PAN_BUFFER_FACTOR;
   const yBasedBottomWorldY = Math.min(visibleBottomWorldY, 0) - worldYSpan * PAN_BUFFER_FACTOR;
+  // Inverts the curve's own displayScore formula (x = sign*M*voterCount /
+  // (voterCount+D)) to find the worldY at which this curve reaches a given
+  // displayed-X magnitude. Unlike the pre-damping formula, this curve now
+  // asymptotes towards MAX_VOTE_MAGNITUDE rather than growing without
+  // bound, so there is no finite voterCount at or beyond it.
+  const invertDisplayX = (x: number): number | null => {
+    if (x <= 0) {
+      return null;
+    }
+    if (x >= MAX_VOTE_MAGNITUDE) {
+      return Number.POSITIVE_INFINITY;
+    }
+    const voterCount = (x * DISPLAY_SCORE_DAMPING) / (MAX_VOTE_MAGNITUDE - x);
+    return Math.log10(voterCount);
+  };
   const voteBoundPoints = (sign: 1 | -1): string => {
-    // The world-Y range whose score (for this curve's sign) actually falls
-    // within the visible score window, plus the same buffer items get -
+    // The world-Y range whose displayed X (for this curve's sign) actually
+    // falls within the visible window, plus the same buffer items get -
     // where this curve's resolution needs to be spent at the current X
-    // zoom. Only meaningful where that score range is actually positive
-    // (there's no world-Y for a zero-or-negative score on this curve); when
-    // it isn't, this side of the curve isn't in the visible score window at
-    // all, so the plain Y-based range is used instead - coarse resolution
-    // doesn't matter for a curve that's off-screen in X either way.
-    const loScore = Math.max(
+    // zoom. Only meaningful where that range is actually positive (there's
+    // no world-Y for a zero-or-negative displayed X on this curve); when it
+    // isn't, this side of the curve isn't in the visible window at all, so
+    // the plain Y-based range is used instead - coarse resolution doesn't
+    // matter for a curve that's off-screen in X either way.
+    const loX = Math.max(
       0,
       sign > 0 ? visibleMinWorld - bufferWorldWidth : -(visibleMaxWorld + bufferWorldWidth),
     );
-    const hiScore = Math.max(
+    const hiX = Math.max(
       0,
       sign > 0 ? visibleMaxWorld + bufferWorldWidth : -(visibleMinWorld - bufferWorldWidth),
     );
-    const xBasedBottomWorldY = loScore > 0 ? Math.log10(loScore / MAX_VOTE_MAGNITUDE) : null;
-    const xBasedTopWorldY = hiScore > 0 ? Math.log10(hiScore / MAX_VOTE_MAGNITUDE) : null;
+    const xBasedBottomWorldY = invertDisplayX(loX);
+    const xBasedTopWorldY = invertDisplayX(hiX);
     const rangeBottom =
       xBasedBottomWorldY === null
         ? yBasedBottomWorldY
@@ -663,7 +682,7 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
       const worldY = bottom + (span * i) / VOTE_BOUND_SAMPLE_COUNT;
       const voterCount = 10 ** worldY;
       const score = sign * MAX_VOTE_MAGNITUDE * voterCount;
-      const x = worldToScreen(score, camera, viewportWidth);
+      const x = worldToScreen(displayScore({ score, voterCount }), camera, viewportWidth);
       const y = worldToScreenY(worldY, cameraY, axisTopPx);
       return `${x},${y}`;
     }).join(" ");
@@ -686,12 +705,14 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
   // wherever score 0 actually is, and an item's position against nearby
   // grid lines is continuously, honestly readable.
   //
-  // worldStepX is rounded up to a "nice" value so labels read as 20, 50,
-  // 100 rather than 19, 51, 103, floored to 1 since a score is always a
-  // whole number (rule R2). The visible range is padded by the same
-  // PAN_BUFFER_FACTOR buffer items get, so a live drag preview never
-  // reveals a gap at the leading edge before the next render supplies more
-  // ticks.
+  // worldStepX is rounded up to a "nice" value (e.g. 1, 2, 5) rather than an
+  // arbitrary one, floored to 1 - the displayed X position (see
+  // displayScore.ts) is continuous, not a whole number like the underlying
+  // score, but the whole visible range only spans roughly
+  // +-MAX_VOTE_MAGNITUDE, so sub-1 ticks would rarely add anything. The
+  // visible range is padded by the same PAN_BUFFER_FACTOR buffer items get,
+  // so a live drag preview never reveals a gap at the leading edge before
+  // the next render supplies more ticks.
   const worldStepX = Math.max(1, niceStep(RULER_TICK_SPACING_TARGET_PX / camera.zoom));
   const firstTickX = Math.ceil((visibleMinWorld - bufferWorldWidth) / worldStepX) * worldStepX;
   const tickCountX = Math.floor((visibleMaxWorld + bufferWorldWidth - firstTickX) / worldStepX) + 1;
@@ -753,14 +774,15 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
     // at least one vote" either (see mockItems.ts), and real votes make a
     // 0-voter item with a nonzero score impossible by construction.
     const worldY = Math.log10(Math.max(item.voterCount, 1));
+    const worldX = displayScore(item);
     return {
       item,
-      screenX: worldToScreen(item.score, camera, viewportWidth),
+      screenX: worldToScreen(worldX, camera, viewportWidth),
       screenY: worldToScreenY(worldY, cameraY, axisTopPx),
       // Both axes are now anchored in world space (zoom-derived cell size,
       // no pan term at all), so panning either one cannot reshuffle a
       // cell's contents - the same property batch 3 established for X.
-      cellCol: worldPositionToCellIndex(item.score, gridZoom, GRID_CELL_SIZE_PX),
+      cellCol: worldPositionToCellIndex(worldX, gridZoom, GRID_CELL_SIZE_PX),
       cellRow: worldPositionToCellIndex(worldY, gridZoomY, GRID_CELL_SIZE_PX),
     };
   });
