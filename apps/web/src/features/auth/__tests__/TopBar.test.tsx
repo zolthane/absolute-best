@@ -1,11 +1,13 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
+import { useIntroStore } from "../../intro/introStore";
 import { useAuthStore } from "../authStore";
 import { TopBar } from "../TopBar";
 
 beforeEach(() => {
   window.localStorage.clear();
   useAuthStore.setState({ username: null });
+  useIntroStore.setState({ isOpen: false });
 });
 
 describe("TopBar", () => {
@@ -45,6 +47,15 @@ describe("TopBar", () => {
     fireEvent.change(within(dialog).getByLabelText("Username"), { target: { value: "   " } });
 
     expect(within(dialog).getByRole("button", { name: "Log in" })).toBeDisabled();
+  });
+
+  it("reopens the intro explanation via the '?' button (product spec 2.3)", () => {
+    render(<TopBar />);
+    expect(useIntroStore.getState().isOpen).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "How does this work?" }));
+
+    expect(useIntroStore.getState().isOpen).toBe(true);
   });
 
   it("logging out returns to the logged-out state", () => {

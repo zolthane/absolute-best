@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { NewEntryDialog } from "../entries/NewEntryDialog";
+import { useIntroStore } from "../intro/introStore";
 import { SearchBox } from "../search/SearchBox";
 import { AuthDialog } from "./AuthDialog";
 import { useAuthStore } from "./authStore";
@@ -33,15 +34,21 @@ export function TopBar() {
   const username = useAuthStore((state) => state.username);
   const logout = useAuthStore((state) => state.logout);
   const presence = useSimulatedPresence();
+  const openIntro = useIntroStore((state) => state.open);
 
   return (
     <div
       data-testid="top-bar"
       className="absolute top-0 right-0 left-0 z-10 flex items-center justify-between p-3"
     >
-      <span data-testid="presence-count" className="text-neutral-500 text-xs">
-        {presence} on site
-      </span>
+      <div className="flex items-center gap-2">
+        <span data-testid="presence-count" className="text-neutral-500 text-xs">
+          {presence} on site
+        </span>
+        <Button variant="ghost" size="icon" aria-label="How does this work?" onClick={openIntro}>
+          ?
+        </Button>
+      </div>
 
       <SearchBox />
 

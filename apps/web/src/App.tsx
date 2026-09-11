@@ -1,4 +1,5 @@
 import { TopBar } from "./features/auth/TopBar";
+import { IntroScreen } from "./features/intro/IntroScreen";
 import { WorldViewport } from "./features/world/WorldViewport";
 
 export default function App() {
@@ -11,6 +12,7 @@ export default function App() {
     <main className="relative h-dvh w-screen overflow-hidden bg-white">
       <WorldViewport />
       <TopBar />
+      <IntroScreen />
     </main>
   );
 }
