@@ -63,7 +63,15 @@ export function niceStep(rawStep: number): number {
   return niceFraction * magnitude;
 }
 
-function roundToStepPrecision(value: number, step: number): number {
+/**
+ * Rounds `value` to the decimal precision `step` implies - e.g. step 0.5
+ * rounds to one decimal place. Exposed for callers building their own tick
+ * positions from a step (rather than using computeNiceTicks' whole set),
+ * since repeatedly adding a fractional step accumulates floating-point
+ * noise (0.1 + 0.2 = 0.30000000000000004) that would otherwise show up in
+ * a label.
+ */
+export function roundToStepPrecision(value: number, step: number): number {
   const decimals = step >= 1 ? 0 : Math.min(10, Math.ceil(-Math.log10(step)));
   const factor = 10 ** decimals;
   return Math.round(value * factor) / factor;

@@ -31,7 +31,7 @@ export { findPassedItem, type PassableItem } from "./passedItem";
 export { logScale, sqrtScale } from "./scale";
 export { type SearchableItem, searchItems } from "./searchItems";
 export { settleOvershoot, springSettleProgress } from "./springSettle";
-export { computeNiceTicks, niceStep } from "./ticks";
+export { computeNiceTicks, niceStep, roundToStepPrecision } from "./ticks";
 export {
   clampZoomY,
   interpolateVerticalCamera,

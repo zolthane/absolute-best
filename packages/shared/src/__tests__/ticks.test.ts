@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeNiceTicks, niceStep } from "../ticks";
+import { computeNiceTicks, niceStep, roundToStepPrecision } from "../ticks";
 
 describe("computeNiceTicks", () => {
   it("returns evenly-spaced round numbers within the range", () => {
@@ -90,5 +90,18 @@ describe("niceStep", () => {
   it("returns 0 for a non-positive input, rather than erroring", () => {
     expect(niceStep(0)).toBe(0);
     expect(niceStep(-5)).toBe(0);
+  });
+});
+
+describe("roundToStepPrecision", () => {
+  it("clears the floating-point noise from repeatedly adding a fractional step", () => {
+    // A caller building its own tick positions one step at a time (rather
+    // than using computeNiceTicks) hits this directly: 0.1 + 0.2 is
+    // 0.30000000000000004 in plain floating-point arithmetic.
+    expect(roundToStepPrecision(0.1 + 0.2, 0.1)).toBe(0.3);
+  });
+
+  it("rounds to a whole number once the step is 1 or more", () => {
+    expect(roundToStepPrecision(4.0000000001, 5)).toBe(4);
   });
 });
