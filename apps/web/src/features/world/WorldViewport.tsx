@@ -120,6 +120,21 @@ const MAX_VOTE_MAGNITUDE = 10;
 // zoom, so it stays smooth at any zoom level rather than being diluted.
 const VOTE_BOUND_SAMPLE_COUNT = 80;
 
+// A classic tier-list background, in vertical bands along X (Zoltán's
+// request, once the damped displayScore - see displayScore.ts - made the map
+// read like a race rather than a sprawl): F on the losing end, S on the
+// winning one, each colour holding a slice of the displayed range. F and S
+// are deliberately open-ended (maxWorldX: null) - most items cluster near
+// the fulcrum in the middle bands, and only genuinely one-sided conviction
+// ever reaches the outer two, so those shouldn't stop at a hard edge.
+const TIER_BANDS: { id: string; color: string; maxWorldX: number | null }[] = [
+  { id: "F", color: "#ff7f7f", maxWorldX: -6 },
+  { id: "D", color: "#ffbf7f", maxWorldX: -2 },
+  { id: "C", color: "#ffdf7f", maxWorldX: 2 },
+  { id: "B", color: "#ffff7f", maxWorldX: 6 },
+  { id: "S", color: "#bfff7f", maxWorldX: null },
+];
+
 // Screen pixels of drag per point of vote delta - deliberately independent
 // of camera.zoom (the map's own pan/zoom), which used to drive this: reached
 // +-10 only by dragging the full width of the screen at a typical zoomed-out
@@ -688,6 +703,22 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
     }).join(" ");
   };
 
+  // Tier-band rects: each TIER_BANDS entry becomes a screen-space [left,
+  // right) slice, using the same buffered visible range ticks/items already
+  // render across - null (F and S's open ends) resolves to that buffer's own
+  // outer edge rather than a fixed value, so the colour still reaches past
+  // the edge of the screen during a live drag instead of revealing a gap.
+  const tierBandRects = TIER_BANDS.map((band, i) => {
+    const previousMax = TIER_BANDS[i - 1]?.maxWorldX ?? visibleMinWorld - bufferWorldWidth;
+    const thisMax = band.maxWorldX ?? visibleMaxWorld + bufferWorldWidth;
+    return {
+      id: band.id,
+      color: band.color,
+      left: worldToScreen(previousMax, camera, viewportWidth),
+      right: worldToScreen(thisMax, camera, viewportWidth),
+    };
+  });
+
   // The axis ruler: grid lines and tick marks, each at its OWN world
   // position - like an item, score 20 is wherever score 20 currently maps
   // to on screen, sliding and rescaling with pan/zoom exactly the way items
@@ -978,17 +1009,16 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
       onPointerCancel={handlePointerUp}
       onDragStart={(event) => event.preventDefault()}
     >
-      <div
-        data-testid="world-axis"
-        className="pointer-events-none absolute inset-x-0 bottom-0 h-0.5 bg-black"
-      />
-
       {/* The X-axis ruler: vertical grid lines and score ticks, each at its
           own world position (so an item's position against them stays
           readable while dragging) - but in its own layer, transformed only
           horizontally during a live drag (see xRulerRef's own comment), so
           it stays pinned to the bottom of the screen regardless of any
-          vertical panning, the way a fixed axis reference should. */}
+          vertical panning, the way a fixed axis reference should. Also
+          carries the tier-band background colours (Zoltán's request) - they
+          need the same X-only transform as the grid, and painting them here,
+          before world-axis below, keeps the axis line visible on top of
+          them rather than covered by a full-height colour band. */}
       {/* pointer-events-none throughout both rulers: purely decorative, and
           without it a click landing on one of these (a grid line, a tick's
           label) becomes that element's click instead of falling through to
@@ -999,6 +1029,19 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
         data-testid="world-x-ruler"
         className="pointer-events-none absolute inset-0"
       >
+        {tierBandRects.map((band) => (
+          <div
+            key={`tier-${band.id}`}
+            data-testid="world-tier-band"
+            className="pointer-events-none absolute top-0 h-full"
+            style={{
+              left: band.left,
+              width: Math.max(0, band.right - band.left),
+              backgroundColor: band.color,
+            }}
+          />
+        ))}
+
         {ticksX.map(({ x }) => (
           <div
             key={`grid-x-${x}`}
@@ -1020,6 +1063,11 @@ export function WorldViewport({ items = mockItems }: WorldViewportProps) {
           </div>
         ))}
       </div>
+
+      <div
+        data-testid="world-axis"
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-0.5 bg-black"
+      />
 
       {/* The Y-axis ruler - the same idea as the X one above, mirrored:
           transformed only vertically during a live drag, staying pinned to

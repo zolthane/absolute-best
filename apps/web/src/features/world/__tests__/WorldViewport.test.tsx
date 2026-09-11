@@ -696,6 +696,44 @@ describe("WorldViewport", () => {
     });
   });
 
+  describe("tier-list background", () => {
+    it("paints five bands across the map, from F (losing end) to S (winning end)", () => {
+      render(<WorldViewport />);
+      const bands = screen.getAllByTestId("world-tier-band");
+      expect(bands).toHaveLength(5);
+
+      // Drawn in F -> S order, and F sits on the negative (losing) side, so
+      // each band's left edge should be further right than the previous.
+      const lefts = bands.map((band) => Number.parseFloat(band.style.left));
+      expect(lefts).toEqual([...lefts].sort((a, b) => a - b));
+
+      expect(bands[0]).toHaveStyle({ backgroundColor: "rgb(255, 127, 127)" }); // F
+      expect(bands[4]).toHaveStyle({ backgroundColor: "rgb(191, 255, 127)" }); // S
+    });
+
+    it("keeps F and S open-ended, reaching past both edges of the viewport", () => {
+      render(<WorldViewport />);
+      const bands = screen.getAllByTestId("world-tier-band");
+      const f = bands[0];
+      const s = bands[bands.length - 1];
+      expect(f).toBeDefined();
+      expect(s).toBeDefined();
+      if (!f || !s) throw new Error("fixture error");
+
+      expect(Number.parseFloat(f.style.left)).toBeLessThan(0);
+      const sRight = Number.parseFloat(s.style.left) + Number.parseFloat(s.style.width);
+      expect(sRight).toBeGreaterThan(1000); // viewportWidth from beforeEach
+    });
+
+    it("nests the tier bands inside the X ruler, so they live-track a horizontal drag", () => {
+      render(<WorldViewport />);
+      const ruler = screen.getByTestId("world-x-ruler");
+      for (const band of screen.getAllByTestId("world-tier-band")) {
+        expect(ruler).toContainElement(band);
+      }
+    });
+  });
+
   describe("reference lines", () => {
     const items: Item[] = [
       { id: "a", title: "A", score: -1000, voterCount: 10, order: 0, tags: [] },
