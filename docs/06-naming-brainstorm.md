@@ -26,6 +26,14 @@ anywhere in that, which is why "balance" stopped feeling like the right picture.
 (e.g. batch 11's intro-screen pivot animation) rather than force the name to match a
 picture it was never going to match. Revisit if a stronger alternative below gets a Yes.
 
+**Update, 2026-09-11: rebranding to "Better Than", tagline "Everyone's tier list."** This
+came out of a deeper conversation than the shape of the graph - see the new "Comparison,
+not rating" section below, which questions the scoring model itself, not just the name.
+Trying it live now, on `feature/rebrand-better-than`, to see how it feels before touching
+the formally approved business plan / product spec text (see the multi-document note
+above - those still say "Teeter" and describe the current sum-based scoring; left alone
+until this experiment is confirmed).
+
 **If a rebrand ever does happen:** it's a real, multi-document effort, not a quick
 find-replace. "Teeter" and "Tip the scales" are written into `00-business-plan.md`,
 `01-product-spec.md`, `03-build-checklist.md`, `05-supporting-features.md`, and this
@@ -87,6 +95,27 @@ than a geological one.
 "Verdict."
 - [ ] Yes   - [ ] No   - [x] Maybe
 
+**Better Than** — the verb every vote actually performs (see "Comparison, not rating"
+below): you're not rating an item in isolation, you're placing it relative to everything
+else. **Chosen, 2026-09-11.**
+- [x] Yes   - [ ] No   - [ ] Maybe
+
+**Pecking Order** — same idea, more idiomatic; kept as the runner-up.
+- [ ] Yes   - [ ] No   - [x] Maybe
+
+**Overtake** — the verb, not the noun; already matches the "passing item" feature
+(batch 7b) almost too literally.
+- [ ] Yes   - [ ] No   - [x] Maybe
+
+**Jostle** — the crowded pack shoving for position, once items sit close together.
+- [ ] Yes   - [ ] No   - [x] Maybe
+
+**Contenders** — everything on the map is running for a place.
+- [ ] Yes   - [ ] No   - [x] Maybe
+
+**Sort It Out** — collaborative sorting and settling a dispute, both at once.
+- [ ] Yes   - [ ] No   - [x] Maybe
+
 ---
 
 ## Candidate taglines
@@ -104,6 +133,54 @@ settling rather than a literal two-sided tip.
 **"See what the world settles on"** — works with either "Teeter" or a rebrand — doesn't
 depend on a specific visual metaphor.
 - [ ] Yes   - [ ] No   - [x] Maybe
+
+**"Everyone's tier list."** — pairs with "Better Than": the whole internet making one tier
+list together, live. **Chosen, 2026-09-11.**
+- [x] Yes   - [ ] No   - [ ] Maybe
+
+**"Where does it belong?"** — the literal question a vote answers under the comparison
+model.
+- [ ] Yes   - [ ] No   - [x] Maybe
+
+**"Find out who you're up against."** — leans into the rivalry framing.
+- [ ] Yes   - [ ] No   - [x] Maybe
+
+---
+
+## Comparison, not rating: a deeper question than the name
+
+Raised 2026-09-11, prompted by a simple example: *"I wouldn't cast +10 on pineapple,
+because that would give it a higher score than melon."* That's not a rating instinct
+("how much do I like this?") - it's a placement instinct ("where does this belong,
+relative to that?"). The sum-based scoring model (business plan §2, "Teeter does not
+average, it adds") makes that placement impossible to reason about: score is a running
+total, so voter count alone can put one item permanently out of another's reach, no matter
+how strongly people feel about it. That's also *why* the map spreads out as far as it
+does instead of staying a tight, readable pack.
+
+**Trying, as an experiment (not yet applied to the approved business plan text):**
+display position on X from a damped average - `score / (voterCount + K)` for some small
+constant K - instead of the raw sum. Effects:
+
+- Items cluster near the centre and only earn their way outward as *conviction* (not just
+  vote count) grows - closer together, more of a visible "race", matching the "items
+  should be closer together" feeling from testing.
+- Two items can be meaningfully compared regardless of how many votes each has.
+- Voter count still lives entirely on the Y axis, so nothing about "how many people
+  cared" is lost - it just stops leaking into X as well.
+
+**What this does NOT change:** the underlying vote records, the ±10-per-vote rule, one
+vote per user, locking after voting - all of batch 7's rules stay exactly as specced. Only
+the position/display formula changes. Stored score remains the real, uncapped sum;
+`03-build-checklist.md`'s tests for the sum itself do not need to change.
+
+**What this DOES contradict, and needs a real decision once the experiment is felt:** the
+business plan's stated "no ceiling" (§2.3) and "uncapped" claims (§3) are about the sum,
+which is still true underneath - but the *visible* range becomes bounded (roughly -10..+10
+either side), which is a different promise than what's currently written and pitched. If
+the experiment feels right, this needs a proper, explicit update to `00-business-plan.md`
+and `01-product-spec.md` - not left as a quiet contradiction between the code and the
+approved plan.
 
 ---
 

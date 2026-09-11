@@ -14,8 +14,8 @@ afterEach(() => {
 describe("IntroScreen", () => {
   it("shows the wordmark, tagline, explanation and a Start button", () => {
     render(<IntroScreen />);
-    expect(screen.getByTestId("intro-screen")).toHaveTextContent("Teeter");
-    expect(screen.getByTestId("intro-screen")).toHaveTextContent("Tip the scales.");
+    expect(screen.getByTestId("intro-screen")).toHaveTextContent("Better Than");
+    expect(screen.getByTestId("intro-screen")).toHaveTextContent("Everyone's tier list.");
     expect(screen.getByRole("button", { name: "Start" })).toBeInTheDocument();
   });
 

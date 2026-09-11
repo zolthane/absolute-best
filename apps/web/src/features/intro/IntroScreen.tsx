@@ -13,12 +13,11 @@ export const TRANSITION_MS = 600;
  * distinct, first-load-only experience.
  *
  * Note on the visual: the product spec (9.5, W3) called for a literal
- * pivot-balancing wordmark and a seesaw loading icon. Per the naming
- * discussion (docs/06-naming-brainstorm.md) - the actual map no longer reads
- * as a literal seesaw, so this deliberately uses an abstract tilt and an
- * abstract bounce instead of drawing a beam/fulcrum here too. Easy to swap
- * back to the literal version if "Teeter" ends up staying without any
- * further rethink.
+ * pivot-balancing wordmark and a seesaw loading icon, back when the product
+ * was named "Teeter". Per the naming discussion (docs/06-naming-brainstorm.md)
+ * - the map no longer reads as a literal seesaw, and the name changed to
+ * "Better Than" - so this deliberately uses an abstract tilt and an abstract
+ * bounce rather than a beam/fulcrum motif that no longer matches the name.
  */
 export function IntroScreen() {
   const isOpen = useIntroStore((state) => state.isOpen);
@@ -53,8 +52,8 @@ export function IntroScreen() {
         isExiting ? "scale-90 opacity-0" : "scale-100 opacity-100"
       }`}
     >
-      <h1 className="animate-teeter-tilt font-bold text-5xl text-neutral-900">Teeter</h1>
-      <p className="animate-tagline-breathe text-lg text-neutral-600">Tip the scales.</p>
+      <h1 className="animate-teeter-tilt font-bold text-5xl text-neutral-900">Better Than</h1>
+      <p className="animate-tagline-breathe text-lg text-neutral-600">Everyone's tier list.</p>
       <p className="max-w-sm text-neutral-500 text-sm">
         Every item's position says what people think of it - side to side for loved or hated, up for
         how many people have weighed in. Drag an item to cast your own vote.
