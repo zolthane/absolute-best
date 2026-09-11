@@ -123,16 +123,18 @@ const VOTE_BOUND_SAMPLE_COUNT = 80;
 // A classic tier-list background, in vertical bands along X (Zoltán's
 // request, once the damped displayScore - see displayScore.ts - made the map
 // read like a race rather than a sprawl): F on the losing end, S on the
-// winning one, each colour holding a slice of the displayed range. F and S
-// are deliberately open-ended (maxWorldX: null) - most items cluster near
-// the fulcrum in the middle bands, and only genuinely one-sided conviction
-// ever reaches the outer two, so those shouldn't stop at a hard edge.
+// winning one, each colour holding a slice of the displayed range - S is red,
+// matching the classic tier-list palette's own top-tier colour (flipped from
+// an initial, more literally "red=bad" first guess). F and S are
+// deliberately open-ended (maxWorldX: null) - most items cluster near the
+// fulcrum in the middle bands, and only genuinely one-sided conviction ever
+// reaches the outer two, so those shouldn't stop at a hard edge.
 const TIER_BANDS: { id: string; color: string; maxWorldX: number | null }[] = [
-  { id: "F", color: "#ff7f7f", maxWorldX: -6 },
-  { id: "D", color: "#ffbf7f", maxWorldX: -2 },
+  { id: "F", color: "#bfff7f", maxWorldX: -6 },
+  { id: "D", color: "#ffff7f", maxWorldX: -2 },
   { id: "C", color: "#ffdf7f", maxWorldX: 2 },
-  { id: "B", color: "#ffff7f", maxWorldX: 6 },
-  { id: "S", color: "#bfff7f", maxWorldX: null },
+  { id: "B", color: "#ffbf7f", maxWorldX: 6 },
+  { id: "S", color: "#ff7f7f", maxWorldX: null },
 ];
 
 // Screen pixels of drag per point of vote delta - deliberately independent

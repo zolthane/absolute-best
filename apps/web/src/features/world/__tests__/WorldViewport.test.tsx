@@ -707,8 +707,8 @@ describe("WorldViewport", () => {
       const lefts = bands.map((band) => Number.parseFloat(band.style.left));
       expect(lefts).toEqual([...lefts].sort((a, b) => a - b));
 
-      expect(bands[0]).toHaveStyle({ backgroundColor: "rgb(255, 127, 127)" }); // F
-      expect(bands[4]).toHaveStyle({ backgroundColor: "rgb(191, 255, 127)" }); // S
+      expect(bands[0]).toHaveStyle({ backgroundColor: "rgb(191, 255, 127)" }); // F
+      expect(bands[4]).toHaveStyle({ backgroundColor: "rgb(255, 127, 127)" }); // S
     });
 
     it("keeps F and S open-ended, reaching past both edges of the viewport", () => {
